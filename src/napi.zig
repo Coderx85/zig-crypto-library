@@ -21,7 +21,74 @@ export fn napi_register_module_v1(env: c.napi_env, exports: c.napi_value) c.napi
     t.registerFunction(env, exports, "Batch", Snowflake_Batch) catch return null;
     t.registerFunction(env, exports, "nanoid", Nanoid_Single) catch return null;
     t.registerFunction(env, exports, "nanoidBatchBuffer", Nanoid_BatchBuffer) catch return null;
+    t.registerFunction(env, exports, "nanoidBatchStrings", Nanoid_BatchStrings) catch return null;
     return exports;
+}
+
+fn Nanoid_BatchStrings(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
+    var argc: usize = 2;
+    var argv: [2]c.napi_value = undefined;
+    _ = c.napi_get_cb_info(env, info, &argc, &argv, null, null);
+
+    if (argc < 1) {
+        t.throw(env, "Expected at least 1 argument") catch {};
+        return null;
+    }
+
+    const count = t.getInt32(env, argv[0]) catch return null;
+    if (count < 1) {
+        t.throwRangeError(env, "count must be >= 1") catch {};
+        return null;
+    }
+    if (count > 1000) {
+        t.throwRangeError(env, "count must be <= 1000") catch {};
+        return null;
+    }
+
+    var length: i32 = @intCast(nanoid.DEFAULT_LENGTH);
+    if (argc >= 2) {
+        var arg_type: c.napi_valuetype = undefined;
+        if (c.napi_typeof(env, argv[1], &arg_type) == c.napi_ok) {
+            if (arg_type != c.napi_undefined) {
+                length = t.getInt32(env, argv[1]) catch return null;
+            }
+        }
+    }
+
+    if (length < 1) {
+        t.throwRangeError(env, "length must be >= 1") catch {};
+        return null;
+    }
+    if (length > 128) {
+        t.throwRangeError(env, "length must be <= 128") catch {};
+        return null;
+    }
+
+    const len = @as(usize, @intCast(length));
+
+    var array: c.napi_value = undefined;
+    if (c.napi_create_array_with_length(env, @intCast(count), &array) != c.napi_ok) {
+        return null;
+    }
+
+    var buf: [nanoid.MAX_LENGTH]u8 = undefined;
+    for (0..@as(usize, @intCast(count))) |i| {
+        const slice = buf[0..len];
+        nanoid.generate(slice) catch {
+            t.throw(env, "nanoid generation failed") catch {};
+            return null;
+        };
+
+        var str: c.napi_value = undefined;
+        if (c.napi_create_string_utf8(env, slice.ptr, slice.len, &str) != c.napi_ok) {
+            return null;
+        }
+        if (c.napi_set_element(env, array, @intCast(i), str) != c.napi_ok) {
+            return null;
+        }
+    }
+
+    return array;
 }
 
 fn batchBufferFinalizer(env: c.napi_env, data: ?*anyopaque, hint: ?*anyopaque) callconv(.c) void {

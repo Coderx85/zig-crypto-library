@@ -6,6 +6,7 @@ interface NativeBindings {
   Batch(count: number): bigint[];
   nanoid(length?: number): string;
   nanoidBatchBuffer(count: number, length?: number): Buffer;
+  nanoidBatchStrings(count: number, length?: number): string[];
 }
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
@@ -32,16 +33,10 @@ export const nanoid: NanoidFunction = Object.assign(
   },
   {
     Batch(count: number, length?: number): string[] {
-      const buf = load.nanoidBatchBuffer(count, length);
-      const len = length ?? 21;
-      const ids = new Array<string>(count);
-      for (let i = 0; i < count; i++) {
-        ids[i] = buf.toString("utf-8", i * len, (i + 1) * len);
-      }
-      return ids;
+      return load.nanoidBatchStrings(count, length);
     },
     BatchBuffer(count: number, length?: number): Buffer {
       return load.nanoidBatchBuffer(count, length);
     },
-  },
+  }
 );
