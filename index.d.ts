@@ -10,4 +10,8 @@ export interface Snowflake {
   Batch(count: number): bigint[];
 }
 
+export function SnowflakeId (): bigint;
+
+export function SnowflakeBatch(count: number): bigint[];
+
 export const Snowflake: Snowflake;
