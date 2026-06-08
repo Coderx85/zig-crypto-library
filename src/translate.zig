@@ -93,16 +93,17 @@ pub fn createString(env: c.napi_env, str: []const u8) !c.napi_value {
     return result;
 }
 
-pub fn createStringArray(env: c.napi_env, strings: []const []const u8) !c.napi_value {
-    var array: c.napi_value = undefined;
-    if (c.napi_create_array_with_length(env, @intCast(strings.len), &array) != c.napi_ok) {
-        return throw(env, "Failed to create array");
+pub fn createExternalBuffer(
+    env: c.napi_env,
+    data: []u8,
+    finalizer: ?*const fn (c.napi_env, ?*anyopaque, ?*anyopaque) callconv(.c) void,
+    hint: ?*anyopaque,
+) !c.napi_value {
+    var result: c.napi_value = undefined;
+    if (c.napi_create_external_buffer(env, data.len, data.ptr, finalizer, hint, &result) != c.napi_ok) {
+        return throw(env, "Failed to create external buffer");
     }
-    for (strings, 0..) |str, i| {
-        const js_str = try createString(env, str);
-        if (c.napi_set_element(env, array, @intCast(i), js_str) != c.napi_ok) {
-            return throw(env, "Failed to set array element");
-        }
-    }
-    return array;
+    return result;
 }
+
+

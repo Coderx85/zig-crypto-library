@@ -1,4 +1,4 @@
-import { nanoid, Snowflake } from "@";
+import { nanoid, Snowflake } from "../../index.js";
 
 // Default 21-character ID
 console.log('Default ID:', nanoid());

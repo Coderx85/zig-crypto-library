@@ -1,4 +1,4 @@
-import { Snowflake } from "../../index";
+import { Snowflake } from "../../index.js";
 
 // In a distributed system, each service instance gets a unique nodeId.
 // zig-id auto-derives nodeId from hostname via Wyhash, so every machine

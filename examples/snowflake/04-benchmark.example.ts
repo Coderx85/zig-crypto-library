@@ -1,4 +1,4 @@
-import { Snowflake } from "../index";
+import { Snowflake } from "../../index.js";
 
 // Measure raw throughput of single ID generation
 function benchSingle(count: number): void {
