@@ -1,0 +1,43 @@
+{
+  "name": "zig-id",
+  "version": "0.1.0",
+  "description": "A zero-allocation, N-ABI-stable Node.js native extension for high-performance Snowflake ID generation, written in Zig",
+  "main": "index.js",
+  "typings": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "prebuilds",
+    "LICENSE",
+    "README.md"
+  ],
+  "preferUnplugged": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "install": "node-gyp-build || echo 'Prebuild not found, run node-pre-gyp build to compile locally'",
+    "test": "node test/test.js",
+    "prebuild": "node-gyp-build"
+  },
+  "dependencies": {
+    "node-gyp-build": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "node-api-headers": "^0.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/<user>/zig-id.git"
+  },
+  "keywords": [
+    "snowflake",
+    "id",
+    "zig",
+    "native",
+    "n-api",
+    "bigint"
+  ],
+  "license": "MIT"
+}
