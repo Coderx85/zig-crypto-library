@@ -124,6 +124,16 @@ pub fn build(b: *std.Build) void {
     });
     const run_snowflake_tests = b.addRunArtifact(snowflake_tests);
 
+    const nanoid_mod = b.addModule("nanoid", .{
+        .root_source_file = b.path("src/nanoid.zig"),
+        .target = target,
+    });
+
+    const nanoid_tests = b.addTest(.{
+        .root_module = nanoid_mod,
+    });
+    const run_nanoid_tests = b.addRunArtifact(nanoid_tests);
+
     // A top level step for running all tests. dependOn can be called multiple
     // times and since the two run steps do not depend on one another, this will
     // make the two of them run in parallel.
@@ -131,6 +141,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
     test_step.dependOn(&run_snowflake_tests.step);
+    test_step.dependOn(&run_nanoid_tests.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //

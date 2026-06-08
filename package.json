@@ -1,7 +1,7 @@
 {
-  "name": "zig-id",
-  "version": "0.1.1",
-  "description": "A zero-allocation, N-ABI-stable Node.js native extension for high-performance Snowflake ID generation, written in Zig",
+  "name": "zig-crypto",
+  "version": "0.2.0",
+  "description": "A zero-allocation, N-ABI-stable Node.js native extension for high-performance nanoid and Snowflake ID generation, written in Zig",
   "main": "index.js",
   "typings": "index.d.ts",
   "files": [
@@ -16,7 +16,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "install": "node-gyp-build || echo 'Prebuild not found, run node-pre-gyp build to compile locally'",
+    "install": "node-gyp-build",
     "test": "node test/test.js",
     "prebuild": "node-gyp-build"
   },
@@ -32,6 +32,7 @@
     "url": "git+https://github.com/<user>/zig-id.git"
   },
   "keywords": [
+    "nanoid",
     "snowflake",
     "id",
     "zig",

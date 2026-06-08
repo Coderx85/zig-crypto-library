@@ -1,16 +1,39 @@
 # zig-id
 
 A zero-allocation, N-ABI-stable Node.js native extension for high-performance
-Snowflake ID generation, written in Zig.
+ID generation, written in Zig. Provides both nanoid (URL-safe random strings)
+and Snowflake (time-ordered 64-bit integers).
 
 ```js
-const { Snowflake } = require('zig-id');
+const { nanoid, Snowflake } = require('zig-id');
 
-const id = Snowflake.Id();      // 57406623190478848n
-const ids = Snowflake.Batch(5); // [ 57406623194673152n, 57406623194673153n, ... ]
+// Random URL-safe IDs
+const id = nanoid();          // "V1StGXR8_Z5jdHi6B-myT"
+const id32 = nanoid(32);      // 32-character ID
+const batch = nanoid.Batch(100);  // 100 IDs at once
+
+// Snowflake IDs
+const snowflakeId = Snowflake.Id();      // 57406623190478848n
+const ids = Snowflake.Batch(5);          // [57406623194673152n, ...]
 ```
 
-## API
+## nanoid API
+
+### `nanoid(length?)`
+
+Returns a URL-safe random ID string.
+
+- **Default length:** 21 characters (126 bits of entropy)
+- **Alphabet:** `A-Za-z0-9_-` (64 chars, zero modulo bias)
+- **Entropy:** CSPRNG-backed (`getrandom` / `arc4random` / `BCryptGenRandom`)
+- **Length range:** 1–128
+
+### `nanoid.Batch(count, length?)`
+
+Generates `count` random IDs in a single native call. Accepts 1–1000.
+Throws `RangeError` if count or length is out of range.
+
+## Snowflake API
 
 ### `Snowflake.Id()`
 
@@ -37,9 +60,9 @@ Prebuilt binaries are provided for:
 
 | Platform | Architecture |
 |----------|-------------|
-| Linux | x64, arm64 |
-| macOS | x64, arm64 |
-| Windows | x64 |
+| Linux    | x64, arm64  |
+| macOS    | x64, arm64  |
+| Windows  | x64         |
 
 No build tools required — binaries ship with the package.
 

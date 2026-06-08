@@ -8,10 +8,22 @@ export interface Snowflake {
    *  @param count - Number of IDs to generate (1 ≤ count ≤ 1000)
    *  @throws RangeError if count is out of range */
   Batch(count: number): bigint[];
-}
+};
+export function snowflakeId(): bigint;
+export function snowflakeBatch(count: number): bigint[];
 
-export function SnowflakeId (): bigint;
+export declare const Snowflake: Snowflake;
 
-export function SnowflakeBatch(count: number): bigint[];
+declare const nanoid: {
+  /** Generate a URL-safe random ID.
+   *  @param length Number of characters (1–128, default 21). */
+  (length?: number): string;
 
-export const Snowflake: Snowflake;
+  /** Generate `count` random IDs.
+   *  @param count 1 ≤ count ≤ 1000
+   *  @param length Characters per ID (1–128, default 21)
+   *  @throws RangeError if count or length out of range */
+  Batch(count: number, length?: number): string[];
+};
+
+export { nanoid };
