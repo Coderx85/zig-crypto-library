@@ -1,6 +1,6 @@
 {
   "name": "zig-id",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A zero-allocation, N-ABI-stable Node.js native extension for high-performance Snowflake ID generation, written in Zig",
   "main": "index.js",
   "typings": "index.d.ts",
