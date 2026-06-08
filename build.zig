@@ -115,7 +115,7 @@ pub fn build(b: *std.Build) void {
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
     const snowflake_mod = b.addModule("snowflake", .{
-        .root_source_file = b.path("src/snowflake.zig"),
+        .root_source_file = b.path("src/internal/snowflake.zig"),
         .target = target,
     });
 
@@ -125,7 +125,7 @@ pub fn build(b: *std.Build) void {
     const run_snowflake_tests = b.addRunArtifact(snowflake_tests);
 
     const nanoid_mod = b.addModule("nanoid", .{
-        .root_source_file = b.path("src/nanoid.zig"),
+        .root_source_file = b.path("src/internal/nanoid.zig"),
         .target = target,
     });
 

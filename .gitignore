@@ -20,6 +20,9 @@ skills-lock.json
 # Node modules
 node_modules/
 
+# TypeScript build output
+dist/
+
 # Environment variables
 .env.development
 .env.production
