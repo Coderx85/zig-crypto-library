@@ -1,0 +1,27 @@
+# Ignore my personal configuration files & documents.
+doc/
+
+# Ignore the zig build directory
+.zig-cache/
+build.zig.zon
+
+# Ignore the Agnet CLI 
+.agents/
+.claude/
+.entire
+.gemini/
+.github/hooks/entire.json
+.opencode/
+skills-lock.json
+
+# VSCode settings and extensions
+.vscode/
+
+# Node modules
+node_modules/
+
+# Environment variables
+.env.development
+.env.production
+.env.local
+.env
