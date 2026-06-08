@@ -10,14 +10,20 @@
     "rootDir": ".",
     "types": ["node"],
     "declaration": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "paths": {
-      "@": ["./index.d.ts"]
+      "@": ["./index.ts"]
     }
   },
   "include": [
-    "index.d.ts",
-    "examples/**/*.example.ts"
+    "index.ts",
+    "types/**/*.d.ts",
+    "test/**/*.ts",
+    "examples/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 }

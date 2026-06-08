@@ -84,3 +84,26 @@ pub fn createBigintArray(env: c.napi_env, ids: []const u64) !c.napi_value {
     }
     return array;
 }
+
+pub fn createString(env: c.napi_env, str: []const u8) !c.napi_value {
+    var result: c.napi_value = undefined;
+    if (c.napi_create_string_utf8(env, str.ptr, str.len, &result) != c.napi_ok) {
+        return throw(env, "Failed to create string");
+    }
+    return result;
+}
+
+pub fn createExternalBuffer(
+    env: c.napi_env,
+    data: []u8,
+    finalizer: ?*const fn (c.napi_env, ?*anyopaque, ?*anyopaque) callconv(.c) void,
+    hint: ?*anyopaque,
+) !c.napi_value {
+    var result: c.napi_value = undefined;
+    if (c.napi_create_external_buffer(env, data.len, data.ptr, finalizer, hint, &result) != c.napi_ok) {
+        return throw(env, "Failed to create external buffer");
+    }
+    return result;
+}
+
+

@@ -1,4 +1,4 @@
-import { Snowflake } from "../index";
+import { Snowflake } from "../../index.js";
 
 // Snowflake ID bit layout (64 bits total):
 //

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const snowflake = @import("snowflake.zig");
+pub const snowflake = @import("internal/snowflake.zig");
 
 pub fn printAnotherMessage(writer: *std.Io.Writer) std.Io.Writer.Error!void {
     try writer.print("Run `zig build test` to run the tests.\n", .{});
