@@ -1,0 +1,4 @@
+npx lint-staged
+node scripts/bump-version.js
+git add package.json
+npm run test
