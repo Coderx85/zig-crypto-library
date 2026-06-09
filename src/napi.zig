@@ -376,10 +376,10 @@ fn Base64_Decode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.nap
     const buf = @as([*]u8, @ptrCast(ptr.?))[0..max_out];
 
     const actual = switch (encoding) {
-        .standard => base64.decode(input, buf, .standard) catch {
+        .standard => base64.decodeSimd(input, buf, .standard) catch {
             return null;
         },
-        .url_safe => base64.decode(input, buf, .url_safe) catch {
+        .url_safe => base64.decodeSimd(input, buf, .url_safe) catch {
             return null;
         },
     };
@@ -437,10 +437,10 @@ fn Base64_DecodeStr(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.
     const buf = @as([*]u8, @ptrCast(ptr.?))[0..max_out];
 
     const actual = switch (encoding) {
-        .standard => base64.decode(input_str, buf, .standard) catch {
+        .standard => base64.decodeSimd(input_str, buf, .standard) catch {
             return null;
         },
-        .url_safe => base64.decode(input_str, buf, .url_safe) catch {
+        .url_safe => base64.decodeSimd(input_str, buf, .url_safe) catch {
             return null;
         },
     };
