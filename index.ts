@@ -1,42 +1,52 @@
 import gypBuild from "node-gyp-build";
 import { resolve } from "node:path";
+import type { NanoidFunction } from "./types/nanoid.types";
+import type { SnowflakeModule } from "./types/snowflake.types";
+import type { NativeBindings } from "./types/native.types";
 
-interface NativeBindings {
-  Id(): bigint;
-  Batch(count: number): bigint[];
-  nanoid(length?: number): string;
-  nanoidBatchBuffer(count: number, length?: number): Buffer;
-  nanoidBatchStrings(count: number, length?: number): string[];
-}
+// ── Native module loader ──────────────────────────────
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
 
-export interface SnowflakeModule {
-  Id(): bigint;
-  Batch(count: number): bigint[];
-}
+// ── Snowflake ─────────────────────────────────────────
 
 export const Snowflake: SnowflakeModule = {
   Id: load.Id,
   Batch: load.Batch,
 };
 
-export interface NanoidFunction {
-  (length?: number): string;
-  Batch(count: number, length?: number): string[];
-  BatchBuffer(count: number, length?: number): Buffer;
+// ── Extract helpers (pure JS, no native code) ─────────
+
+const TIMESTAMP_SHIFT = 22n;
+const NODE_ID_SHIFT = 12n;
+const SEQUENCE_MASK = 0xfffn;
+const NODE_ID_MASK = 0x3ffn;
+
+export const EPOCH = 1767225600000;
+
+export function extractSnowflakeTime(id: bigint): number {
+  return Number((id >> TIMESTAMP_SHIFT) + BigInt(EPOCH));
 }
 
-export const nanoid: NanoidFunction = Object.assign(
-  function nanoid(length?: number): string {
-    return load.nanoid(length);
-  },
-  {
-    Batch(count: number, length?: number): string[] {
-      return load.nanoidBatchStrings(count, length);
-    },
-    BatchBuffer(count: number, length?: number): Buffer {
-      return load.nanoidBatchBuffer(count, length);
-    },
-  }
-);
+export function extractSnowflakeNodeId(id: bigint): number {
+  return Number((id >> NODE_ID_SHIFT) & NODE_ID_MASK);
+}
+
+export function extractSnowflakeSequence(id: bigint): number {
+  return Number(id & SEQUENCE_MASK);
+}
+
+// ── Nanoid ────────────────────────────────────────────
+
+export const DEFAULT_LENGTH = 21;
+export const MAX_LENGTH = 128;
+export const MAX_BATCH = 1000;
+
+export const nanoid: NanoidFunction = Object.assign(load.nanoid, {
+  Batch: load.nanoidBatchStrings,
+  BatchBuffer: load.nanoidBatchBuffer,
+});
+
+// ── Type re-exports ───────────────────────────────────
+
+export type { NanoidFunction, SnowflakeModule, NativeBindings };
