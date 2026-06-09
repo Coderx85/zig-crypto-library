@@ -98,16 +98,12 @@ export const codec: { base64: Base64Module } = {
       return Buffer.from(load.base64Encode(data, options));
     },
     decode(data: Buffer | string, options?: Base64Options): Buffer {
-      if (typeof data === "string") {
-        return Buffer.from(load.base64DecodeStr(data, options));
-      }
-      return Buffer.from(load.base64Decode(data, options));
+      const buf: Buffer = typeof data === "string" ? Buffer.from(data) : data;
+      return Buffer.from(load.base64Decode(buf, options));
     },
     decodeConst(data: Buffer | string, options?: Base64Options): Buffer {
-      if (typeof data === "string") {
-        return Buffer.from(load.base64DecodeConstStr(data, options));
-      }
-      return Buffer.from(load.base64DecodeConst(data, options));
+      const buf: Buffer = typeof data === "string" ? Buffer.from(data) : data;
+      return Buffer.from(load.base64DecodeConst(buf, options));
     },
   },
 };
