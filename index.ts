@@ -1,14 +1,24 @@
 import gypBuild from "node-gyp-build";
 import { resolve } from "node:path";
-import type { NanoidFunction } from "./types/nanoid.types";
-import type { SnowflakeModule } from "./types/snowflake.types";
-import type { NativeBindings } from "./types/native.types";
 
 // ── Native module loader ──────────────────────────────
+
+interface NativeBindings {
+  Id(): bigint;
+  Batch(count: number): bigint[];
+  nanoid(length?: number): string;
+  nanoidBatchBuffer(count: number, length?: number): Buffer;
+  nanoidBatchStrings(count: number, length?: number): string[];
+}
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
 
 // ── Snowflake ─────────────────────────────────────────
+
+export interface SnowflakeModule {
+  Id(): bigint;
+  Batch(count: number): bigint[];
+}
 
 export const Snowflake: SnowflakeModule = {
   Id: load.Id,
@@ -42,11 +52,13 @@ export const DEFAULT_LENGTH = 21;
 export const MAX_LENGTH = 128;
 export const MAX_BATCH = 1000;
 
+export interface NanoidFunction {
+  (length?: number): string;
+  Batch(count: number, length?: number): string[];
+  BatchBuffer(count: number, length?: number): Buffer;
+}
+
 export const nanoid: NanoidFunction = Object.assign(load.nanoid, {
   Batch: load.nanoidBatchStrings,
   BatchBuffer: load.nanoidBatchBuffer,
 });
-
-// ── Type re-exports ───────────────────────────────────
-
-export type { NanoidFunction, SnowflakeModule, NativeBindings };
