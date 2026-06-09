@@ -18,6 +18,8 @@ interface NativeBindings {
     data: string,
     options?: { urlSafe?: boolean }
   ): ArrayBuffer;
+  base58Encode(data: Buffer): string;
+  base58Decode(data: string): ArrayBuffer;
 }
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
@@ -85,11 +87,12 @@ export interface Base64Module {
   decodeConst(data: Buffer | string, options?: Base64Options): Buffer;
 }
 
-function toBuffer(data: Buffer | string): Buffer {
-  return typeof data === "string" ? Buffer.from(data, "utf-8") : data;
+export interface Base58Module {
+  encode(data: Buffer): string;
+  decode(data: string): Buffer;
 }
 
-export const codec: { base64: Base64Module } = {
+export const codec: { base64: Base64Module; base58: Base58Module } = {
   base64: {
     encode(data: Buffer, options?: Base64Options): string {
       return load.base64EncodeStr(data, options);
@@ -104,6 +107,14 @@ export const codec: { base64: Base64Module } = {
     decodeConst(data: Buffer | string, options?: Base64Options): Buffer {
       const buf: Buffer = typeof data === "string" ? Buffer.from(data) : data;
       return Buffer.from(load.base64DecodeConst(buf, options));
+    },
+  },
+  base58: {
+    encode(data: Buffer): string {
+      return load.base58Encode(data);
+    },
+    decode(data: string): Buffer {
+      return Buffer.from(load.base58Decode(data));
     },
   },
 };

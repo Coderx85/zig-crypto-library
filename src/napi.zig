@@ -4,6 +4,7 @@ const t = @import("translate.zig");
 const snowflake = @import("internal/snowflake.zig");
 const nanoid = @import("internal/nanoid.zig");
 const base64 = @import("codec/base64.zig");
+const base58 = @import("codec/base58.zig");
 
 const batch_allocator = std.heap.page_allocator;
 
@@ -29,6 +30,8 @@ export fn napi_register_module_v1(env: c.napi_env, exports: c.napi_value) c.napi
     t.registerFunction(env, exports, "base64DecodeStr", Base64_DecodeStr) catch return null;
     t.registerFunction(env, exports, "base64DecodeConst", Base64_DecodeConst) catch return null;
     t.registerFunction(env, exports, "base64DecodeConstStr", Base64_DecodeConstStr) catch return null;
+    t.registerFunction(env, exports, "base58Encode", Base58_Encode) catch return null;
+    t.registerFunction(env, exports, "base58Decode", Base58_Decode) catch return null;
     return exports;
 }
 
@@ -564,6 +567,84 @@ fn Base64_DecodeConstStr(env: c.napi_env, info: c.napi_callback_info) callconv(.
         .url_safe => base64.decodeConstantTime(input_str, buf, .url_safe) catch {
             return null;
         },
+    };
+
+    if (actual < max_out) {
+        var trimmed: c.napi_value = undefined;
+        if (c.napi_create_arraybuffer(env, actual, &ptr, &trimmed) != c.napi_ok) {
+            return null;
+        }
+        @memcpy(@as([*]u8, @ptrCast(ptr.?))[0..actual], buf[0..actual]);
+        return trimmed;
+    }
+
+    return result;
+}
+
+fn Base58_Encode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
+    var argc: usize = 1;
+    var argv: [1]c.napi_value = undefined;
+    _ = c.napi_get_cb_info(env, info, &argc, &argv, null, null);
+
+    if (argc < 1) {
+        t.throw(env, "Expected at least 1 argument (Buffer)") catch {};
+        return null;
+    }
+
+    const input = t.getBuffer(env, argv[0]) catch return null;
+    const out_len = base58.encodeLen(input.len);
+    const STACK_THRESH: usize = 8192;
+
+    if (out_len <= STACK_THRESH) {
+        var stack_buf: [STACK_THRESH]u8 = undefined;
+        const actual = base58.encode(input, stack_buf[0..out_len]) catch {
+            t.throw(env, "base58 encode failed") catch {};
+            return null;
+        };
+        return t.createString(env, stack_buf[0..actual]) catch return null;
+    }
+
+    const heap_buf = batch_allocator.alloc(u8, out_len) catch {
+        t.throw(env, "Allocation failed") catch {};
+        return null;
+    };
+    defer batch_allocator.free(heap_buf);
+
+    const actual = base58.encode(input, heap_buf) catch {
+        t.throw(env, "base58 encode failed") catch {};
+        return null;
+    };
+    return t.createString(env, heap_buf[0..actual]) catch return null;
+}
+
+fn Base58_Decode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
+    var argc: usize = 1;
+    var argv: [1]c.napi_value = undefined;
+    _ = c.napi_get_cb_info(env, info, &argc, &argv, null, null);
+
+    if (argc < 1) {
+        t.throw(env, "Expected at least 1 argument (string)") catch {};
+        return null;
+    }
+
+    const input_str = t.getString(env, argv[0], batch_allocator) catch return null;
+    defer batch_allocator.free(input_str);
+
+    const max_out = base58.decodeLen(input_str.len);
+    if (max_out == 0) {
+        return t.createArrayBuffer(env, "") catch return null;
+    }
+
+    var ptr: ?*anyopaque = undefined;
+    var result: c.napi_value = undefined;
+    if (c.napi_create_arraybuffer(env, max_out, &ptr, &result) != c.napi_ok) {
+        return null;
+    }
+    const buf = @as([*]u8, @ptrCast(ptr.?))[0..max_out];
+
+    const actual = base58.decode(input_str, buf) catch {
+        t.throw(env, "base58 decode failed") catch {};
+        return null;
     };
 
     if (actual < max_out) {
