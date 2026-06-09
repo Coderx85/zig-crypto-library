@@ -71,7 +71,10 @@ pub fn encode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
 
         inline for (0..4) |off| {
             const t = switch (off) {
-                0 => t0, 1 => t1, 2 => t2, 3 => t3,
+                0 => t0,
+                1 => t1,
+                2 => t2,
+                3 => t3,
                 else => unreachable,
             };
             const base = j + off * 4;
@@ -247,6 +250,172 @@ pub fn decodeConstantTime(input: []const u8, output: []u8, comptime enc: Encodin
 
     if (err != 0) return error.InvalidChar;
     return total;
+}
+
+fn simdDecodeTables() struct { @Vector(16, u8), @Vector(16, u8) } {
+    comptime {
+        var T_lo: [16]u8 = undefined;
+        var T_hi: [16]u8 = undefined;
+
+        T_hi[2] = 52;
+        T_hi[3] = 53;
+        T_hi[4] = 0;
+        T_hi[5] = 16;
+        T_hi[6] = 26;
+        T_hi[7] = 42;
+        for (&T_hi, 0..) |*v, k| {
+            if (k < 2 or k > 7) v.* = 0;
+        }
+
+        T_lo[0] = 255;
+        T_lo[1] = 0;
+        for (&T_lo, 0..) |*v, k| {
+            if (k >= 2) v.* = @intCast(k - 1);
+        }
+
+        return .{ @bitCast(T_lo), @bitCast(T_hi) };
+    }
+}
+
+fn pshufb(table: @Vector(16, u8), indices: @Vector(16, u8)) @Vector(16, u8) {
+    var result = table;
+    asm volatile ("pshufb %[indices], %[result]"
+        : [result] "+x" (result),
+        : [indices] "x" (indices),
+    );
+    return result;
+}
+
+fn simdDecode16(v: @Vector(16, u8), comptime enc: Encoding) @Vector(16, u8) {
+    const dec_tables = comptime simdDecodeTables();
+    const T_lo = dec_tables[0];
+    const T_hi = dec_tables[1];
+
+    const v_hi: @Vector(16, u8) = v >> @splat(4);
+    var r = pshufb(T_lo, v) +% pshufb(T_hi, v_hi);
+
+    if (comptime enc == .standard) {
+        const slash: @Vector(16, u8) = @splat('/');
+        const three: @Vector(16, u8) = @splat(3);
+        const zero: @Vector(16, u8) = @splat(0);
+        const is_slash = v == slash;
+        const corr = @select(u8, is_slash, three, zero);
+        r = r -% corr;
+    } else {
+        const minus: @Vector(16, u8) = @splat('-');
+        const under: @Vector(16, u8) = @splat('_');
+        const two: @Vector(16, u8) = @splat(2);
+        const thr3: @Vector(16, u8) = @splat(33);
+        const zero: @Vector(16, u8) = @splat(0);
+        const c1 = @select(u8, v == minus, two, zero);
+        const c2 = @select(u8, v == under, thr3, zero);
+        r = r -% c1 +% c2;
+    }
+
+    return r;
+}
+
+fn simdValid16(v: @Vector(16, u8), comptime enc: Encoding) bool {
+    const A: @Vector(16, u8) = @splat('A');
+    const Z: @Vector(16, u8) = @splat('Z');
+    const a: @Vector(16, u8) = @splat('a');
+    const z: @Vector(16, u8) = @splat('z');
+    const zero: @Vector(16, u8) = @splat('0');
+    const nine: @Vector(16, u8) = @splat('9');
+    const is_upper = (v >= A) & (v <= Z);
+    const is_lower = (v >= a) & (v <= z);
+    const is_digit = (v >= zero) & (v <= nine);
+    const is_valid = is_upper | is_lower | is_digit;
+
+    const is_special = if (comptime enc == .standard) blk: {
+        const plus: @Vector(16, u8) = @splat('+');
+        const slash: @Vector(16, u8) = @splat('/');
+        break :blk (v == plus) | (v == slash);
+    } else blk: {
+        const dash: @Vector(16, u8) = @splat('-');
+        const under: @Vector(16, u8) = @splat('_');
+        break :blk (v == dash) | (v == under);
+    };
+
+    return @reduce(.And, is_valid | is_special);
+}
+
+fn simdPack12(v: @Vector(16, u8), output: []u8) void {
+    const lanes: @Vector(4, u32) = @bitCast(v);
+    inline for (0..4) |g| {
+        const lane = lanes[g];
+        const a = @as(u8, @truncate(lane));
+        const b = @as(u8, @truncate(lane >> 8));
+        const c = @as(u8, @truncate(lane >> 16));
+        const d = @as(u8, @truncate(lane >> 24));
+
+        output[g * 3 + 0] = (a << 2) | (b >> 4);
+        output[g * 3 + 1] = ((b & 0x0F) << 4) | (c >> 2);
+        output[g * 3 + 2] = ((c & 0x03) << 6) | d;
+    }
+}
+
+pub fn decodeSimd(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
+    if (comptime @import("builtin").cpu.arch != .x86_64)
+        return decode(input, output, enc);
+
+    if (input.len == 0) return 0;
+    if (input.len % 4 != 0) return error.InvalidLength;
+    if (output.len < decodeLen(input.len)) return error.OutputTooSmall;
+
+    const groups = input.len / 4;
+    const bulk = groups - 1;
+    const simd_bulk = bulk / 4 * 4;
+
+    var i: usize = 0;
+    var j: usize = 0;
+
+    while (i < simd_bulk * 4) : ({
+        i += 16;
+        j += 12;
+    }) {
+        const v: @Vector(16, u8) = input[i..][0..16].*;
+        if (!simdValid16(v, enc)) return error.InvalidChar;
+        const r = simdDecode16(v, enc);
+        simdPack12(r, output[j..]);
+    }
+
+    while (i < (groups - 1) * 4) : (i += 4) {
+        const dec_table = enc.decodeTable();
+        const c0: u32 = dec_table[input[i + 0]];
+        const c1: u32 = dec_table[input[i + 1]];
+        const c2: u32 = dec_table[input[i + 2]];
+        const c3: u32 = dec_table[input[i + 3]];
+        if (c0 | c1 | c2 | c3 >= 0x40)
+            return error.InvalidChar;
+        output[j + 0] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
+        output[j + 1] = @as(u8, @truncate((c1 << 4) | (c2 >> 2)));
+        output[j + 2] = @as(u8, @truncate((c2 << 6) | c3));
+        j += 3;
+    }
+
+    const off = (groups - 1) * 4;
+    const dec_table = enc.decodeTable();
+    const c0: u32 = dec_table[input[off + 0]];
+    const c1: u32 = dec_table[input[off + 1]];
+    const c2: u32 = dec_table[input[off + 2]];
+    const c3: u32 = dec_table[input[off + 3]];
+    if (c0 == 0xFF or c1 == 0xFF) return error.InvalidChar;
+    if (c2 == 0xFE and c3 == 0xFE) {
+        output[j] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
+        return j + 1;
+    }
+    if (c2 == 0xFF) return error.InvalidChar;
+    if (c3 == 0xFE) {
+        output[j + 0] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
+        output[j + 1] = @as(u8, @truncate((c1 << 4) | (c2 >> 2)));
+        return j + 2;
+    }
+    if (c3 == 0xFF) return error.InvalidChar;
+    output[j + 0] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
+    output[j + 1] = @as(u8, @truncate((c1 << 4) | (c2 >> 2)));
+    output[j + 2] = @as(u8, @truncate((c2 << 6) | c3));
+    return j + 3;
 }
 
 // ── Tests ────────────────────────────────────────────
@@ -514,6 +683,117 @@ test "decodeConstantTime roundtrip URL-safe" {
         const dec_len = try decodeConstantTime(enc_buf[0..enc_len], &dec_buf, .url_safe);
         try std.testing.expectEqualStrings(input, dec_buf[0..dec_len]);
     }
+}
+
+test "decodeSimd matches decode standard" {
+    const inputs = [_][]const u8{
+        "TQ==",         "TWE=",     "TWFu",     "SGVsbG8=",     "SGVsbG8sIFdvcmxkIQ==", "",
+        "QUJDRA==",     "YWJjZGVm", "MTIzNA==", "AAECAwQFBg==", "/////w==",             "AAAAAA==",
+        "AAAAAAAAAAE=",
+    };
+    inline for (inputs) |b64| {
+        var buf1: [64]u8 = undefined;
+        var buf2: [64]u8 = undefined;
+        const n1 = try decode(b64, &buf1, .standard);
+        const n2 = try decodeSimd(b64, &buf2, .standard);
+        try std.testing.expectEqual(n1, n2);
+        try std.testing.expectEqualSlices(u8, buf1[0..n1], buf2[0..n2]);
+    }
+}
+
+test "decodeSimd matches decode URL-safe" {
+    const inputs = [_][]const u8{
+        "TQ==",         "TWE=",     "TWFu",     "SGVsbG8=",     "SGVsbG8sIFdvcmxkIQ==", "",
+        "QUJDRA==",     "YWJjZGVm", "MTIzNA==", "AAECAwQFBg==", "__v8",                 "AAAAAA==",
+        "AAAAAAAAAAE=",
+    };
+    inline for (inputs) |b64| {
+        var buf1: [64]u8 = undefined;
+        var buf2: [64]u8 = undefined;
+        const n1 = try decode(b64, &buf1, .url_safe);
+        const n2 = try decodeSimd(b64, &buf2, .url_safe);
+        try std.testing.expectEqual(n1, n2);
+        try std.testing.expectEqualSlices(u8, buf1[0..n1], buf2[0..n2]);
+    }
+}
+
+test "decodeSimd roundtrip large buffer" {
+    const input = "Hello, World! This is a longer string to test SIMD bulk path with more than 16 bytes of base64 input.";
+    var enc_buf: [512]u8 = undefined;
+    var dec_buf1: [512]u8 = undefined;
+    var dec_buf2: [512]u8 = undefined;
+    const enc_len = try encode(input, &enc_buf, .standard);
+    const n1 = try decode(enc_buf[0..enc_len], &dec_buf1, .standard);
+    const n2 = try decodeSimd(enc_buf[0..enc_len], &dec_buf2, .standard);
+    try std.testing.expectEqual(n1, n2);
+    try std.testing.expectEqualSlices(u8, dec_buf1[0..n1], dec_buf2[0..n2]);
+}
+
+test "decodeSimd rejects invalid chars same as decode" {
+    const invalid = [_][]const u8{ "!!!!", "ABCD", "EFGH", "   ", "a*a*", "AAAA" };
+    inline for (invalid) |b64| {
+        var buf1: [8]u8 = undefined;
+        var buf2: [8]u8 = undefined;
+        const r1 = decode(b64, &buf1, .standard);
+        const r2 = decodeSimd(b64, &buf2, .standard);
+        if (r1) |_| {
+            if (r2) |_| {
+                // Both succeeded (some may be valid)
+            } else |_| {
+                try std.testing.expect(false);
+            }
+        } else |e1| {
+            if (r2) |_| {
+                try std.testing.expect(false);
+            } else |e2| {
+                try std.testing.expectEqual(e1, e2);
+            }
+        }
+    }
+}
+
+test "decodeSimd rejects invalid length" {
+    var buf: [8]u8 = undefined;
+    try std.testing.expectError(error.InvalidLength, decodeSimd("SGVsbA=", &buf, .standard));
+}
+
+test "decodeSimd rejects output too small" {
+    var buf: [1]u8 = undefined;
+    try std.testing.expectError(error.OutputTooSmall, decodeSimd("SGVsbG8sIFdvcmxkIQ==", &buf, .standard));
+}
+
+test "decodeSimd handles URL-safe special chars" {
+    // Encode known binary to produce '-' and '_' chars
+    var enc_buf: [64]u8 = undefined;
+    // 0xFB → bit pattern 11111011 → first base64 char is 111110 = 62 = '-' (url)
+    const data = [_]u8{ 0xFB, 0xAF, 0xBE, 0xAD };
+    const enc_len = try encode(&data, &enc_buf, .url_safe);
+    const b64 = enc_buf[0..enc_len];
+
+    var buf1: [64]u8 = undefined;
+    var buf2: [64]u8 = undefined;
+    const n1 = try decode(b64, &buf1, .url_safe);
+    const n2 = try decodeSimd(b64, &buf2, .url_safe);
+    try std.testing.expectEqual(n1, n2);
+    try std.testing.expectEqualSlices(u8, buf1[0..n1], buf2[0..n2]);
+}
+
+test "decodeSimd handles URL-safe special chars large" {
+    // Build a payload that triggers SIMD bulk loop and contains '-' and '_'
+    var raw: [48]u8 = undefined;
+    for (&raw, 0..) |*b, i| {
+        b.* = @truncate((i * 157) & 0xFF); // generates varied bytes including ones that encode to '-' and '_'
+    }
+    var enc_buf: [128]u8 = undefined;
+    const enc_len = try encode(&raw, &enc_buf, .url_safe);
+    const b64 = enc_buf[0..enc_len];
+
+    var buf1: [64]u8 = undefined;
+    var buf2: [64]u8 = undefined;
+    const n1 = try decode(b64, &buf1, .url_safe);
+    const n2 = try decodeSimd(b64, &buf2, .url_safe);
+    try std.testing.expectEqual(n1, n2);
+    try std.testing.expectEqualSlices(u8, buf1[0..n1], buf2[0..n2]);
 }
 
 test "decodeConstantTime binary roundtrip" {
