@@ -29,7 +29,7 @@ for (const size of sizes) {
   for (let i = 0; i < size; i++) data[i] = i & 0xff;
 
   console.log(`\n--- ${size} bytes ---`);
-  let enc: Buffer;
+  let enc: string;
 
   bench(
     "encode",

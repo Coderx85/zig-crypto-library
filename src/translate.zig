@@ -124,6 +124,22 @@ pub fn getNamedProperty(env: c.napi_env, obj: c.napi_value, comptime name: [:0]c
     return result;
 }
 
+pub fn getString(env: c.napi_env, value: c.napi_value, allocator: std.mem.Allocator) ![]const u8 {
+    var len: usize = 0;
+    if (c.napi_get_value_string_utf8(env, value, null, 0, &len) != c.napi_ok) {
+        return throw(env, "Expected string");
+    }
+    if (len == 0) return &[_]u8{};
+
+    const buf = try allocator.alloc(u8, len);
+    var copied: usize = 0;
+    if (c.napi_get_value_string_utf8(env, value, buf.ptr, len + 1, &copied) != c.napi_ok) {
+        allocator.free(buf);
+        return throw(env, "Failed to get string value");
+    }
+    return buf[0..copied];
+}
+
 pub fn createArrayBuffer(env: c.napi_env, data: []const u8) !c.napi_value {
     var ptr: ?*anyopaque = undefined;
     var result: c.napi_value = undefined;
