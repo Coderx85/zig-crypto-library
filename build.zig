@@ -134,6 +134,16 @@ pub fn build(b: *std.Build) void {
     });
     const run_nanoid_tests = b.addRunArtifact(nanoid_tests);
 
+    const base64_mod = b.addModule("codec_base64", .{
+        .root_source_file = b.path("src/codec/base64.zig"),
+        .target = target,
+    });
+
+    const base64_tests = b.addTest(.{
+        .root_module = base64_mod,
+    });
+    const run_base64_tests = b.addRunArtifact(base64_tests);
+
     // A top level step for running all tests. dependOn can be called multiple
     // times and since the two run steps do not depend on one another, this will
     // make the two of them run in parallel.
@@ -142,6 +152,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_exe_tests.step);
     test_step.dependOn(&run_snowflake_tests.step);
     test_step.dependOn(&run_nanoid_tests.step);
+    test_step.dependOn(&run_base64_tests.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //

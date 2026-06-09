@@ -9,6 +9,9 @@ interface NativeBindings {
   nanoid(length?: number): string;
   nanoidBatchBuffer(count: number, length?: number): Buffer;
   nanoidBatchStrings(count: number, length?: number): string[];
+  base64Encode(data: Buffer, options?: { urlSafe?: boolean }): ArrayBuffer;
+  base64Decode(data: Buffer, options?: { urlSafe?: boolean }): ArrayBuffer;
+  base64DecodeConst(data: Buffer, options?: { urlSafe?: boolean }): ArrayBuffer;
 }
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
@@ -62,3 +65,29 @@ export const nanoid: NanoidFunction = Object.assign(load.nanoid, {
   Batch: load.nanoidBatchStrings,
   BatchBuffer: load.nanoidBatchBuffer,
 });
+
+// ── Codec (base64) ────────────────────────────────────
+
+export interface Base64Options {
+  urlSafe?: boolean;
+}
+
+export interface Base64Module {
+  encode(data: Buffer, options?: Base64Options): Buffer;
+  decode(data: Buffer, options?: Base64Options): Buffer;
+  decodeConst(data: Buffer, options?: Base64Options): Buffer;
+}
+
+export const codec: { base64: Base64Module } = {
+  base64: {
+    encode(data: Buffer, options?: Base64Options): Buffer {
+      return Buffer.from(load.base64Encode(data, options));
+    },
+    decode(data: Buffer, options?: Base64Options): Buffer {
+      return Buffer.from(load.base64Decode(data, options));
+    },
+    decodeConst(data: Buffer, options?: Base64Options): Buffer {
+      return Buffer.from(load.base64DecodeConst(data, options));
+    },
+  },
+};

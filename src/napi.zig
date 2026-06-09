@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const t = @import("translate.zig");
 const snowflake = @import("internal/snowflake.zig");
 const nanoid = @import("internal/nanoid.zig");
+const base64 = @import("codec/base64.zig");
 
 const batch_allocator = std.heap.page_allocator;
 
@@ -22,6 +23,9 @@ export fn napi_register_module_v1(env: c.napi_env, exports: c.napi_value) c.napi
     t.registerFunction(env, exports, "nanoid", Nanoid_Single) catch return null;
     t.registerFunction(env, exports, "nanoidBatchBuffer", Nanoid_BatchBuffer) catch return null;
     t.registerFunction(env, exports, "nanoidBatchStrings", Nanoid_BatchStrings) catch return null;
+    t.registerFunction(env, exports, "base64Encode", Base64_Encode) catch return null;
+    t.registerFunction(env, exports, "base64Decode", Base64_Decode) catch return null;
+    t.registerFunction(env, exports, "base64DecodeConst", Base64_DecodeConst) catch return null;
     return exports;
 }
 
@@ -218,4 +222,156 @@ fn Nanoid_BatchBuffer(env: c.napi_env, info: c.napi_callback_info) callconv(.c) 
         batchBufferFinalizer,
         @ptrFromInt(total_len),
     ) catch return null;
+}
+
+fn Base64_Encode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
+    var argc: usize = 2;
+    var argv: [2]c.napi_value = undefined;
+    _ = c.napi_get_cb_info(env, info, &argc, &argv, null, null);
+
+    if (argc < 1) {
+        t.throw(env, "Expected at least 1 argument (Buffer)") catch {};
+        return null;
+    }
+
+    const input = t.getBuffer(env, argv[0]) catch return null;
+
+    var encoding: base64.Encoding = .standard;
+    if (argc >= 2) {
+        var arg_type: c.napi_valuetype = undefined;
+        if (c.napi_typeof(env, argv[1], &arg_type) == c.napi_ok) {
+            if (arg_type == c.napi_object) {
+                if (t.hasNamedProperty(env, argv[1], "urlSafe") catch false) {
+                    const prop = t.getNamedProperty(env, argv[1], "urlSafe") catch return null;
+                    if (t.getBool(env, prop) catch false) {
+                        encoding = .url_safe;
+                    }
+                }
+            }
+        }
+    }
+
+    const out_len = base64.encodeLen(input.len);
+    const buf = batch_allocator.alloc(u8, out_len) catch {
+        t.throw(env, "Allocation failed") catch {};
+        return null;
+    };
+    defer batch_allocator.free(buf);
+
+    switch (encoding) {
+        .standard => _ = base64.encode(input, buf, .standard) catch {
+            t.throw(env, "Base64 encode failed") catch {};
+            return null;
+        },
+        .url_safe => _ = base64.encode(input, buf, .url_safe) catch {
+            t.throw(env, "Base64 encode failed") catch {};
+            return null;
+        },
+    }
+
+    return t.createArrayBuffer(env, buf) catch return null;
+}
+
+fn Base64_Decode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
+    var argc: usize = 2;
+    var argv: [2]c.napi_value = undefined;
+    _ = c.napi_get_cb_info(env, info, &argc, &argv, null, null);
+
+    if (argc < 1) {
+        t.throw(env, "Expected at least 1 argument (Buffer)") catch {};
+        return null;
+    }
+
+    const input = t.getBuffer(env, argv[0]) catch return null;
+
+    var encoding: base64.Encoding = .standard;
+    if (argc >= 2) {
+        var arg_type: c.napi_valuetype = undefined;
+        if (c.napi_typeof(env, argv[1], &arg_type) == c.napi_ok) {
+            if (arg_type == c.napi_object) {
+                if (t.hasNamedProperty(env, argv[1], "urlSafe") catch false) {
+                    const prop = t.getNamedProperty(env, argv[1], "urlSafe") catch return null;
+                    if (t.getBool(env, prop) catch false) {
+                        encoding = .url_safe;
+                    }
+                }
+            }
+        }
+    }
+
+    const max_out = base64.decodeLen(input.len);
+    if (max_out == 0) {
+        return t.createArrayBuffer(env, "") catch return null;
+    }
+
+    const buf = batch_allocator.alloc(u8, max_out) catch {
+        t.throw(env, "Allocation failed") catch {};
+        return null;
+    };
+    defer batch_allocator.free(buf);
+
+    const actual = switch (encoding) {
+        .standard => base64.decode(input, buf, .standard) catch {
+            t.throw(env, "Base64 decode failed") catch {};
+            return null;
+        },
+        .url_safe => base64.decode(input, buf, .url_safe) catch {
+            t.throw(env, "Base64 decode failed") catch {};
+            return null;
+        },
+    };
+
+    return t.createArrayBuffer(env, buf[0..actual]) catch return null;
+}
+
+fn Base64_DecodeConst(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
+    var argc: usize = 2;
+    var argv: [2]c.napi_value = undefined;
+    _ = c.napi_get_cb_info(env, info, &argc, &argv, null, null);
+
+    if (argc < 1) {
+        t.throw(env, "Expected at least 1 argument (Buffer)") catch {};
+        return null;
+    }
+
+    const input = t.getBuffer(env, argv[0]) catch return null;
+
+    var encoding: base64.Encoding = .standard;
+    if (argc >= 2) {
+        var arg_type: c.napi_valuetype = undefined;
+        if (c.napi_typeof(env, argv[1], &arg_type) == c.napi_ok) {
+            if (arg_type == c.napi_object) {
+                if (t.hasNamedProperty(env, argv[1], "urlSafe") catch false) {
+                    const prop = t.getNamedProperty(env, argv[1], "urlSafe") catch return null;
+                    if (t.getBool(env, prop) catch false) {
+                        encoding = .url_safe;
+                    }
+                }
+            }
+        }
+    }
+
+    const max_out = base64.decodeLen(input.len);
+    if (max_out == 0) {
+        return t.createArrayBuffer(env, "") catch return null;
+    }
+
+    const buf = batch_allocator.alloc(u8, max_out) catch {
+        t.throw(env, "Allocation failed") catch {};
+        return null;
+    };
+    defer batch_allocator.free(buf);
+
+    const actual = switch (encoding) {
+        .standard => base64.decodeConstantTime(input, buf, .standard) catch {
+            t.throw(env, "Base64 decode failed") catch {};
+            return null;
+        },
+        .url_safe => base64.decodeConstantTime(input, buf, .url_safe) catch {
+            t.throw(env, "Base64 decode failed") catch {};
+            return null;
+        },
+    };
+
+    return t.createArrayBuffer(env, buf[0..actual]) catch return null;
 }
