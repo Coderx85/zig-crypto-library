@@ -1,6 +1,6 @@
 {
   "name": "zig-crypto",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "A zero-allocation, N-ABI-stable Node.js native extension for high-performance nanoid and Snowflake ID generation, written in Zig",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -37,7 +37,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<user>/zig-crypto.git"
+    "url": "git+https://github.com/Coderx85/zig-crypto-library.git"
   },
   "keywords": [
     "nanoid",
