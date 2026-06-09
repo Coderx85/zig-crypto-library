@@ -150,18 +150,34 @@ pub fn decode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
 
     const groups = input.len / 4;
     var j: usize = 0;
+    var i: usize = 0;
 
-    // Bulk: no padding possible (only last group can have '=')
-    for (0..groups - 1) |g| {
-        const off = g * 4;
-        const c0: u32 = dec_table[input[off + 0]];
-        const c1: u32 = dec_table[input[off + 1]];
-        const c2: u32 = dec_table[input[off + 2]];
-        const c3: u32 = dec_table[input[off + 3]];
+    // Bulk: 8 groups (32 bytes) per iteration
+    const bulk8 = (groups - 1) / 8 * 8;
+    while (i < bulk8 * 4) : (i += 32) {
+        inline for (0..8) |g| {
+            const off = i + g * 4;
+            const c0: u32 = dec_table[input[off + 0]];
+            const c1: u32 = dec_table[input[off + 1]];
+            const c2: u32 = dec_table[input[off + 2]];
+            const c3: u32 = dec_table[input[off + 3]];
+            if (c0 | c1 | c2 | c3 >= 0x40)
+                return error.InvalidChar;
+            output[j + g * 3 + 0] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
+            output[j + g * 3 + 1] = @as(u8, @truncate((c1 << 4) | (c2 >> 2)));
+            output[j + g * 3 + 2] = @as(u8, @truncate((c2 << 6) | c3));
+        }
+        j += 24;
+    }
 
-        if (c0 >= 0x40 or c1 >= 0x40 or c2 >= 0x40 or c3 >= 0x40)
+    // Remaining groups before last (no padding possible)
+    while (i < (groups - 1) * 4) : (i += 4) {
+        const c0: u32 = dec_table[input[i + 0]];
+        const c1: u32 = dec_table[input[i + 1]];
+        const c2: u32 = dec_table[input[i + 2]];
+        const c3: u32 = dec_table[input[i + 3]];
+        if (c0 | c1 | c2 | c3 >= 0x40)
             return error.InvalidChar;
-
         output[j + 0] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
         output[j + 1] = @as(u8, @truncate((c1 << 4) | (c2 >> 2)));
         output[j + 2] = @as(u8, @truncate((c2 << 6) | c3));
@@ -174,9 +190,7 @@ pub fn decode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
     const c1: u32 = dec_table[input[off + 1]];
     const c2: u32 = dec_table[input[off + 2]];
     const c3: u32 = dec_table[input[off + 3]];
-
     if (c0 == 0xFF or c1 == 0xFF) return error.InvalidChar;
-
     if (c2 == 0xFE and c3 == 0xFE) {
         output[j] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
         return j + 1;
@@ -188,7 +202,6 @@ pub fn decode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
         return j + 2;
     }
     if (c3 == 0xFF) return error.InvalidChar;
-
     output[j + 0] = @as(u8, @truncate((c0 << 2) | (c1 >> 4)));
     output[j + 1] = @as(u8, @truncate((c1 << 4) | (c2 >> 2)));
     output[j + 2] = @as(u8, @truncate((c2 << 6) | c3));

@@ -10,8 +10,14 @@ interface NativeBindings {
   nanoidBatchBuffer(count: number, length?: number): Buffer;
   nanoidBatchStrings(count: number, length?: number): string[];
   base64Encode(data: Buffer, options?: { urlSafe?: boolean }): ArrayBuffer;
+  base64EncodeStr(data: Buffer, options?: { urlSafe?: boolean }): string;
   base64Decode(data: Buffer, options?: { urlSafe?: boolean }): ArrayBuffer;
+  base64DecodeStr(data: string, options?: { urlSafe?: boolean }): ArrayBuffer;
   base64DecodeConst(data: Buffer, options?: { urlSafe?: boolean }): ArrayBuffer;
+  base64DecodeConstStr(
+    data: string,
+    options?: { urlSafe?: boolean }
+  ): ArrayBuffer;
 }
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
@@ -73,20 +79,34 @@ export interface Base64Options {
 }
 
 export interface Base64Module {
-  encode(data: Buffer, options?: Base64Options): Buffer;
-  decode(data: Buffer, options?: Base64Options): Buffer;
-  decodeConst(data: Buffer, options?: Base64Options): Buffer;
+  encode(data: Buffer, options?: Base64Options): string;
+  encodeBuf(data: Buffer, options?: Base64Options): Buffer;
+  decode(data: Buffer | string, options?: Base64Options): Buffer;
+  decodeConst(data: Buffer | string, options?: Base64Options): Buffer;
+}
+
+function toBuffer(data: Buffer | string): Buffer {
+  return typeof data === "string" ? Buffer.from(data, "utf-8") : data;
 }
 
 export const codec: { base64: Base64Module } = {
   base64: {
-    encode(data: Buffer, options?: Base64Options): Buffer {
+    encode(data: Buffer, options?: Base64Options): string {
+      return load.base64EncodeStr(data, options);
+    },
+    encodeBuf(data: Buffer, options?: Base64Options): Buffer {
       return Buffer.from(load.base64Encode(data, options));
     },
-    decode(data: Buffer, options?: Base64Options): Buffer {
+    decode(data: Buffer | string, options?: Base64Options): Buffer {
+      if (typeof data === "string") {
+        return Buffer.from(load.base64DecodeStr(data, options));
+      }
       return Buffer.from(load.base64Decode(data, options));
     },
-    decodeConst(data: Buffer, options?: Base64Options): Buffer {
+    decodeConst(data: Buffer | string, options?: Base64Options): Buffer {
+      if (typeof data === "string") {
+        return Buffer.from(load.base64DecodeConstStr(data, options));
+      }
       return Buffer.from(load.base64DecodeConst(data, options));
     },
   },

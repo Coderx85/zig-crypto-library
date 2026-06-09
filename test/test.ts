@@ -141,9 +141,9 @@ assert(
 
 const helloBuf = Buffer.from("Hello, World!");
 const encoded = codec.base64.encode(helloBuf);
-assert(Buffer.isBuffer(encoded), "base64.encode returns Buffer");
+assert(typeof encoded === "string", "base64.encode returns string");
 assert(
-  encoded.toString() === "SGVsbG8sIFdvcmxkIQ==",
+  encoded === "SGVsbG8sIFdvcmxkIQ==",
   "base64.encode standard matches expected"
 );
 
@@ -156,9 +156,9 @@ assert(
 
 // URL-safe variant
 const urlEncoded = codec.base64.encode(helloBuf, { urlSafe: true });
-assert(Buffer.isBuffer(urlEncoded), "base64.encode urlSafe returns Buffer");
+assert(typeof urlEncoded === "string", "base64.encode urlSafe returns string");
 assert(
-  urlEncoded.toString() === "SGVsbG8sIFdvcmxkIQ==",
+  urlEncoded === "SGVsbG8sIFdvcmxkIQ==",
   "base64.encode urlSafe matches expected (same for ascii)"
 );
 
@@ -182,18 +182,18 @@ assert(emptyDecoded.length === 0, "empty decode produces empty output");
 
 // Single byte
 const singleEnc = codec.base64.encode(Buffer.from("M"));
-assert(singleEnc.toString() === "TQ==", "single byte encode is 'TQ=='");
+assert(singleEnc === "TQ==", "single byte encode is 'TQ=='");
 
 // Two bytes
 const twoEnc = codec.base64.encode(Buffer.from("Ma"));
-assert(twoEnc.toString() === "TWE=", "two byte encode is 'TWE='");
+assert(twoEnc === "TWE=", "two byte encode is 'TWE='");
 
 // URL-safe binary (bytes that differ between alphabets)
 const specialBin = Buffer.from([0xff, 0xfb, 0xfc]);
 const stdEnc = codec.base64.encode(specialBin);
 const safeEnc = codec.base64.encode(specialBin, { urlSafe: true });
-assert(stdEnc.toString() === "//v8", "standard encode uses +/ chars");
-assert(safeEnc.toString() === "__v8", "urlSafe encode uses -_ chars");
+assert(stdEnc === "//v8", "standard encode uses +/ chars");
+assert(safeEnc === "__v8", "urlSafe encode uses -_ chars");
 
 // ── Codec: decodeConst (constant-time) ────────────────
 assert(
