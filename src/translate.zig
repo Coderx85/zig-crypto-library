@@ -93,6 +93,48 @@ pub fn createString(env: c.napi_env, str: []const u8) !c.napi_value {
     return result;
 }
 
+pub fn getBuffer(env: c.napi_env, value: c.napi_value) ![]u8 {
+    var ptr: ?*anyopaque = undefined;
+    var len: usize = undefined;
+    if (c.napi_get_buffer_info(env, value, &ptr, &len) != c.napi_ok) {
+        return throw(env, "Expected ArrayBuffer or Buffer");
+    }
+    return @as([*]u8, @ptrCast(ptr))[0..len];
+}
+
+pub fn getBool(env: c.napi_env, value: c.napi_value) !bool {
+    var result: bool = undefined;
+    if (c.napi_get_value_bool(env, value, &result) != c.napi_ok) {
+        return throw(env, "Expected boolean");
+    }
+    return result;
+}
+
+pub fn hasNamedProperty(env: c.napi_env, obj: c.napi_value, comptime name: [:0]const u8) !bool {
+    var result: bool = undefined;
+    _ = c.napi_has_named_property(env, obj, name, &result);
+    return result;
+}
+
+pub fn getNamedProperty(env: c.napi_env, obj: c.napi_value, comptime name: [:0]const u8) !c.napi_value {
+    var result: c.napi_value = undefined;
+    if (c.napi_get_named_property(env, obj, name, &result) != c.napi_ok) {
+        return throw(env, "Failed to get property." ++ name);
+    }
+    return result;
+}
+
+pub fn createArrayBuffer(env: c.napi_env, data: []const u8) !c.napi_value {
+    var ptr: ?*anyopaque = undefined;
+    var result: c.napi_value = undefined;
+    if (c.napi_create_arraybuffer(env, data.len, &ptr, &result) != c.napi_ok) {
+        return throw(env, "Failed to create ArrayBuffer");
+    }
+    const buf = @as([*]u8, @ptrCast(ptr.?));
+    @memcpy(buf[0..data.len], data);
+    return result;
+}
+
 pub fn createExternalBuffer(
     env: c.napi_env,
     data: []u8,

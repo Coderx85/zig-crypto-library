@@ -1,4 +1,4 @@
-import { nanoid, Snowflake } from "../index.js";
+import { nanoid, Snowflake, codec } from "../index.js";
 
 let passed = 0;
 let failed = 0;
@@ -127,8 +127,109 @@ const snowBatch = Snowflake.Batch(5);
 assert(Array.isArray(snowBatch), "Snowflake.Batch(5) is array");
 assert(snowBatch.length === 5, "Snowflake.Batch(5) length is 5");
 
+// ── Codec: base64 encode/decode ──────────────────────
+assert(typeof codec === "object", "codec is exported");
+assert(typeof codec.base64 === "object", "codec.base64 is exported");
+assert(
+  typeof codec.base64.encode === "function",
+  "codec.base64.encode is a function"
+);
+assert(
+  typeof codec.base64.decode === "function",
+  "codec.base64.decode is a function"
+);
+
+const helloBuf = Buffer.from("Hello, World!");
+const encoded = codec.base64.encode(helloBuf);
+assert(Buffer.isBuffer(encoded), "base64.encode returns Buffer");
+assert(
+  encoded.toString() === "SGVsbG8sIFdvcmxkIQ==",
+  "base64.encode standard matches expected"
+);
+
+const decoded = codec.base64.decode(encoded);
+assert(Buffer.isBuffer(decoded), "base64.decode returns Buffer");
+assert(
+  decoded.toString() === "Hello, World!",
+  "base64.decode roundtrip matches original"
+);
+
+// URL-safe variant
+const urlEncoded = codec.base64.encode(helloBuf, { urlSafe: true });
+assert(Buffer.isBuffer(urlEncoded), "base64.encode urlSafe returns Buffer");
+assert(
+  urlEncoded.toString() === "SGVsbG8sIFdvcmxkIQ==",
+  "base64.encode urlSafe matches expected (same for ascii)"
+);
+
+const urlDecoded = codec.base64.decode(urlEncoded, { urlSafe: true });
+assert(
+  urlDecoded.toString() === "Hello, World!",
+  "base64.decode urlSafe roundtrip"
+);
+
+// Binary data roundtrip
+const binData = Buffer.from([0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd]);
+const binEncoded = codec.base64.encode(binData);
+const binDecoded = codec.base64.decode(binEncoded);
+assert(binDecoded.equals(binData), "binary data roundtrips through base64");
+
+// Empty input roundtrip
+const emptyEncoded = codec.base64.encode(Buffer.alloc(0));
+assert(emptyEncoded.length === 0, "empty encode produces empty output");
+const emptyDecoded = codec.base64.decode(Buffer.alloc(0));
+assert(emptyDecoded.length === 0, "empty decode produces empty output");
+
+// Single byte
+const singleEnc = codec.base64.encode(Buffer.from("M"));
+assert(singleEnc.toString() === "TQ==", "single byte encode is 'TQ=='");
+
+// Two bytes
+const twoEnc = codec.base64.encode(Buffer.from("Ma"));
+assert(twoEnc.toString() === "TWE=", "two byte encode is 'TWE='");
+
+// URL-safe binary (bytes that differ between alphabets)
+const specialBin = Buffer.from([0xff, 0xfb, 0xfc]);
+const stdEnc = codec.base64.encode(specialBin);
+const safeEnc = codec.base64.encode(specialBin, { urlSafe: true });
+assert(stdEnc.toString() === "//v8", "standard encode uses +/ chars");
+assert(safeEnc.toString() === "__v8", "urlSafe encode uses -_ chars");
+
+// ── Codec: decodeConst (constant-time) ────────────────
+assert(
+  typeof codec.base64.decodeConst === "function",
+  "codec.base64.decodeConst is a function"
+);
+
+const ctDecoded = codec.base64.decodeConst(encoded);
+assert(Buffer.isBuffer(ctDecoded), "decodeConst returns Buffer");
+assert(
+  ctDecoded.toString() === "Hello, World!",
+  "decodeConst roundtrip matches original"
+);
+assert(decoded.equals(ctDecoded), "decodeConst matches decode output");
+
+const ctUrlDecoded = codec.base64.decodeConst(urlEncoded, { urlSafe: true });
+assert(
+  ctUrlDecoded.toString() === "Hello, World!",
+  "decodeConst urlSafe roundtrip"
+);
+
+const ctBinDecoded = codec.base64.decodeConst(binEncoded);
+assert(ctBinDecoded.equals(binData), "decodeConst binary roundtrip");
+
+// decodeConst rejects invalid chars
+assertThrows(
+  () => codec.base64.decodeConst(Buffer.from("!!!!")),
+  "decodeConst rejects invalid chars"
+);
+assertThrows(
+  () => codec.base64.decodeConst(Buffer.from("//v8"), { urlSafe: true }),
+  "decodeConst urlSafe rejects +/ chars"
+);
+
 // ── Summary ──────────────────────────────────────────
 console.log(
-  `\n${passed} passed, ${failed} failed${failed > 0 ? " *** FAIL ***" : ""}`,
+  `\n${passed} passed, ${failed} failed${failed > 0 ? " *** FAIL ***" : ""}`
 );
 process.exit(failed > 0 ? 1 : 0);
