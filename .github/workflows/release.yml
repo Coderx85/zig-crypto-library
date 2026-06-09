@@ -1,7 +1,7 @@
 name: release
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
           mkdir -p prebuilds/${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'darwin' || 'win32' }}-${{ runner.arch == 'X64' && 'x64' || 'arm64' }}
           cp zig-out/lib/libzig_id.* prebuilds/*/zig-id.node 2>/dev/null || cp zig-out/bin/zig_id.dll prebuilds/*/zig-id.node 2>/dev/null || true
       - name: JS tests
-        run: node test/test.js
+        run: npm test
 
   build-cross:
     strategy:
