@@ -228,6 +228,77 @@ assertThrows(
   "decodeConst urlSafe rejects +/ chars"
 );
 
+// ── Codec: base58 encode/decode ─────────────────────
+assert(typeof codec.base58 === "object", "codec.base58 is exported");
+assert(
+  typeof codec.base58.encode === "function",
+  "codec.base58.encode is a function"
+);
+assert(
+  typeof codec.base58.decode === "function",
+  "codec.base58.decode is a function"
+);
+
+const b58alpha = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+// Roundtrip "Hello, World!"
+const hello58 = Buffer.from("Hello, World!");
+const enc58 = codec.base58.encode(hello58);
+assert(typeof enc58 === "string", "base58.encode returns string");
+const dec58 = codec.base58.decode(enc58);
+assert(Buffer.isBuffer(dec58), "base58.decode returns Buffer");
+assert(dec58.equals(hello58), "base58 roundtrip matches original: " + enc58);
+
+// All output characters belong to base58 alphabet
+for (const ch of enc58) {
+  assert(b58alpha.includes(ch), `base58 char '${ch}' is in alphabet`);
+}
+
+// Empty input
+const emptyEnc58 = codec.base58.encode(Buffer.alloc(0));
+assert(emptyEnc58 === "", "base58.empty encode produces empty string");
+const emptyDec58 = codec.base58.decode("");
+assert(emptyDec58.length === 0, "base58.empty decode produces empty buffer");
+
+// Single byte: 0x00 → "1"
+const zeroEnc = codec.base58.encode(Buffer.from([0x00]));
+assert(zeroEnc === "1", "base58.encode 0x00 is '1'");
+const zeroDec = codec.base58.decode("1");
+assert(zeroDec.length === 1 && zeroDec[0] === 0, "base58.decode '1' is 0x00");
+
+// Single byte: 0xFF → "5Q"
+const ffEnc = codec.base58.encode(Buffer.from([0xff]));
+assert(ffEnc === "5Q", "base58.encode 0xFF is '5Q'");
+
+// Leading zero preserved
+const leadEnc = codec.base58.encode(Buffer.from([0x00, 0x00, 0x01]));
+assert(leadEnc.startsWith("11"), "base58 leading zeros encoded as '11'");
+
+// Binary roundtrip (DEADBEEF)
+const beef = Buffer.from([0xde, 0xad, 0xbe, 0xef]);
+const beefEnc = codec.base58.encode(beef);
+assert(typeof beefEnc === "string", "base58.encode binary returns string");
+const beefDec = codec.base58.decode(beefEnc);
+assert(beefDec.equals(beef), "base58 DEADBEEF roundtrip");
+
+// Multi-byte roundtrip (CAFEBABE)
+const cafe = Buffer.from([0xca, 0xfe, 0xba, 0xbe]);
+assert(
+  codec.base58.decode(codec.base58.encode(cafe)).equals(cafe),
+  "base58 CAFEBABE roundtrip"
+);
+
+// Invalid char rejection
+assertThrows(
+  () => codec.base58.decode("0OIl!@#$%"),
+  "base58.decode rejects invalid chars (0/O/I/l/special)"
+);
+assertThrows(() => codec.base58.decode("hello0"), "base58.decode rejects '0'");
+assertThrows(
+  () => codec.base58.decode("helLo"),
+  "base58.decode rejects 'O' and 'l'"
+);
+
 // ── Summary ──────────────────────────────────────────
 console.log(
   `\n${passed} passed, ${failed} failed${failed > 0 ? " *** FAIL ***" : ""}`
