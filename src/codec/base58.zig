@@ -5,12 +5,14 @@ pub const Error = error{
     InvalidChar,
     InvalidLength,
     OutputTooSmall,
+    InputTooLarge,
 };
 
 pub const alphabet = tables.BASE58;
 pub const decode_table = tables.DECODE_BASE58;
 
 const BASE: u8 = 58;
+const STACK_THRESH: usize = 4096;
 
 pub inline fn encodeLen(input_len: usize) usize {
     return if (input_len == 0) 0 else input_len * 138 / 100 + 2;
@@ -23,88 +25,107 @@ pub inline fn decodeLen(input_len: usize) usize {
 pub fn encode(input: []const u8, output: []u8) !usize {
     if (input.len == 0) return 0;
 
-    var leading_zeros: usize = 0;
-    while (leading_zeros < input.len and input[leading_zeros] == 0) {
-        leading_zeros += 1;
+    const leadingZeros = std.mem.indexOfNone(u8, input, &[_]u8{0}) orelse input.len;
+
+    if (leadingZeros == input.len) {
+        if (leadingZeros > output.len) return error.OutputTooSmall;
+        @memset(output[0..leadingZeros], alphabet[0]);
+        return leadingZeros;
     }
 
-    const payload = input[leading_zeros..];
-    if (payload.len == 0) {
-        if (leading_zeros > output.len) return error.OutputTooSmall;
-        @memset(output[0..leading_zeros], alphabet[0]);
-        return leading_zeros;
-    }
+    const payload = input[leadingZeros..];
+    const maxOut = encodeLen(input.len);
+    if (output.len < maxOut) return error.OutputTooSmall;
 
-    const max_out = encodeLen(input.len);
-    if (output.len < max_out) return error.OutputTooSmall;
+    const useHeap = payload.len > STACK_THRESH;
+    var stackBuf: [STACK_THRESH]u8 = undefined;
+    var heapBuf: ?[]u8 = null;
+    const buf: []u8 = if (useHeap) blk: {
+        heapBuf = std.heap.page_allocator.alloc(u8, payload.len) catch return error.InputTooLarge;
+        break :blk heapBuf.?;
+    } else stackBuf[0..];
+    defer if (heapBuf) |b| std.heap.page_allocator.free(b);
 
-    var buf: [256]u8 = undefined;
     @memcpy(buf[0..payload.len], payload);
-    var buf_len: usize = payload.len;
+    var bufLen: usize = payload.len;
 
-    var out_buf: [384]u8 = undefined;
-    var out_pos: usize = 0;
+    const outHeap = maxOut > STACK_THRESH;
+    var stackOut: [STACK_THRESH]u8 = undefined;
+    var heapOut: ?[]u8 = null;
+    const outBuf: []u8 = if (outHeap) blk: {
+        heapOut = std.heap.page_allocator.alloc(u8, maxOut) catch return error.InputTooLarge;
+        break :blk heapOut.?;
+    } else stackOut[0..maxOut];
+    defer if (heapOut) |b| std.heap.page_allocator.free(b);
 
-    while (buf_len > 0) {
+    var outPos: usize = 0;
+
+    while (bufLen > 0) {
         var rem: u16 = 0;
-        for (0..buf_len) |i| {
+        for (0..bufLen) |i| {
             rem = (rem << 8) | buf[i];
             buf[i] = @as(u8, @truncate(rem / BASE));
             rem = rem % BASE;
         }
-        while (buf_len > 0 and buf[0] == 0) {
-            std.mem.copyForwards(u8, buf[0..buf_len], buf[1 .. buf_len + 1]);
-            buf_len -= 1;
+        while (bufLen > 0 and buf[0] == 0) {
+            std.mem.copyForwards(u8, buf[0 .. bufLen - 1], buf[1..bufLen]);
+            bufLen -= 1;
         }
-        out_buf[out_pos] = alphabet[@as(u8, @truncate(rem))];
-        out_pos += 1;
+        outBuf[outPos] = alphabet[@as(u8, @truncate(rem))];
+        outPos += 1;
     }
 
-    for (0..leading_zeros) |_| {
-        out_buf[out_pos] = alphabet[0];
-        out_pos += 1;
+    for (0..leadingZeros) |_| {
+        outBuf[outPos] = alphabet[0];
+        outPos += 1;
     }
 
-    std.mem.reverse(u8, out_buf[0..out_pos]);
-    @memcpy(output[0..out_pos], out_buf[0..out_pos]);
-    return out_pos;
+    std.mem.reverse(u8, outBuf[0..outPos]);
+    @memcpy(output[0..outPos], outBuf[0..outPos]);
+    return outPos;
 }
 
 pub fn decode(input: []const u8, output: []u8) !usize {
     if (input.len == 0) return 0;
 
-    var leading_ones: usize = 0;
-    while (leading_ones < input.len and input[leading_ones] == alphabet[0]) {
-        leading_ones += 1;
+    const leadingOnes = std.mem.indexOfNone(u8, input, alphabet[0..1]) orelse input.len;
+
+    if (leadingOnes == input.len) {
+        if (leadingOnes > output.len) return error.OutputTooSmall;
+        @memset(output[0..leadingOnes], 0);
+        return leadingOnes;
     }
 
-    const payload = input[leading_ones..];
-    if (payload.len == 0) {
-        if (leading_ones > output.len) return error.OutputTooSmall;
-        @memset(output[0..leading_ones], 0);
-        return leading_ones;
-    }
+    const payload = input[leadingOnes..];
+    const maxOut = decodeLen(input.len);
+    if (output.len < maxOut) return error.OutputTooSmall;
 
-    const max_out = decodeLen(input.len);
-    if (output.len < max_out) return error.OutputTooSmall;
+    const useHeap = maxOut > STACK_THRESH;
+    var stackScratch: [STACK_THRESH]u8 = undefined;
+    var heapScratch: ?[]u8 = null;
+    const scratch: []u8 = if (useHeap) blk: {
+        heapScratch = std.heap.page_allocator.alloc(u8, maxOut) catch return error.InputTooLarge;
+        break :blk heapScratch.?;
+    } else stackScratch[0..maxOut];
+    defer if (heapScratch) |b| std.heap.page_allocator.free(b);
+    @memset(scratch[0..maxOut], 0);
 
-    var scratch: [256]u8 = undefined;
-    var scratch_len: usize = 0;
+    var scratchLen: usize = 0;
 
     for (payload) |c| {
         const val = decode_table[c];
         if (val == 0xFF) return error.InvalidChar;
 
-        if (scratch_len == 0) {
+        if (scratchLen == 0) {
             if (val != 0) {
                 scratch[0] = val;
-                scratch_len = 1;
+                scratchLen = 1;
             }
             continue;
         }
 
         var carry: u16 = val;
-        var i = scratch_len;
+        var i = scratchLen;
         while (i > 0) {
             i -= 1;
             const temp = (@as(u16, scratch[i]) * BASE) + carry;
@@ -113,23 +134,23 @@ pub fn decode(input: []const u8, output: []u8) !usize {
         }
 
         if (carry > 0) {
-            var j = scratch_len;
+            var j = scratchLen;
             while (j > 0) : (j -= 1) {
                 scratch[j] = scratch[j - 1];
             }
             scratch[0] = @as(u8, @truncate(carry));
-            scratch_len += 1;
+            scratchLen += 1;
         }
     }
 
-    const total_len = leading_ones + scratch_len;
-    if (total_len > output.len) return error.OutputTooSmall;
+    const totalLen = leadingOnes + scratchLen;
+    if (totalLen > output.len) return error.OutputTooSmall;
 
-    @memset(output[0..leading_ones], 0);
-    if (scratch_len > 0) {
-        @memcpy(output[leading_ones..][0..scratch_len], scratch[0..scratch_len]);
+    @memset(output[0..leadingOnes], 0);
+    if (scratchLen > 0) {
+        @memcpy(output[leadingOnes..][0..scratchLen], scratch[0..scratchLen]);
     }
-    return total_len;
+    return totalLen;
 }
 
 // ── Tests ──

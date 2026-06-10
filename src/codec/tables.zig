@@ -8,23 +8,15 @@ comptime {
     if (BASE64_STANDARD.len != 64) @compileError("standard alphabet must be exactly 64 characters");
     if (BASE64_URL_SAFE.len != 64) @compileError("URL-safe alphabet must be exactly 64 characters");
     if (BASE58.len != 58) @compileError("base58 alphabet must be exactly 58 characters");
-    assertNoDuplicates64(BASE64_STANDARD);
-    assertNoDuplicates64(BASE64_URL_SAFE);
-    assertNoDuplicates58(BASE58);
+    assertNoDuplicates(64, BASE64_STANDARD, "base64 standard");
+    assertNoDuplicates(64, BASE64_URL_SAFE, "base64 URL-safe");
+    assertNoDuplicates(58, BASE58, "base58");
 }
 
-fn assertNoDuplicates64(alphabet: *const [64]u8) void {
+fn assertNoDuplicates(comptime N: usize, alphabet: *const [N]u8, comptime name: []const u8) void {
     var seen: [256]bool = [_]bool{false} ** 256;
     for (alphabet) |c| {
-        if (seen[c]) @compileError("duplicate character '" ++ [_:0]u8{c} ++ "' in alphabet");
-        seen[c] = true;
-    }
-}
-
-fn assertNoDuplicates58(alphabet: *const [58]u8) void {
-    var seen: [256]bool = [_]bool{false} ** 256;
-    for (alphabet) |c| {
-        if (seen[c]) @compileError("duplicate character '" ++ [_:0]u8{c} ++ "' in base58 alphabet");
+        if (seen[c]) @compileError("duplicate character '" ++ [_:0]u8{c} ++ "' in " ++ name ++ " alphabet");
         seen[c] = true;
     }
 }
@@ -32,10 +24,10 @@ fn assertNoDuplicates58(alphabet: *const [58]u8) void {
 pub const ENCODE_STANDARD: [64]u8 = makeEncodeTable(BASE64_STANDARD);
 pub const ENCODE_URL_SAFE: [64]u8 = makeEncodeTable(BASE64_URL_SAFE);
 
-pub const DECODE_STANDARD: [256]u8 = makeDecodeTable64(BASE64_STANDARD);
-pub const DECODE_URL_SAFE: [256]u8 = makeDecodeTable64(BASE64_URL_SAFE);
+pub const DECODE_STANDARD: [256]u8 = makeDecodeTable(64, BASE64_STANDARD);
+pub const DECODE_URL_SAFE: [256]u8 = makeDecodeTable(64, BASE64_URL_SAFE);
 
-pub const DECODE_BASE58: [256]u8 = makeDecodeTable58(BASE58);
+pub const DECODE_BASE58: [256]u8 = makeDecodeTable(58, BASE58);
 
 fn makeEncodeTable(comptime alphabet: *const [64]u8) [64]u8 {
     var table: [64]u8 = undefined;
@@ -43,19 +35,13 @@ fn makeEncodeTable(comptime alphabet: *const [64]u8) [64]u8 {
     return table;
 }
 
-fn makeDecodeTable64(comptime alphabet: *const [64]u8) [256]u8 {
+fn makeDecodeTable(comptime N: usize, comptime alphabet: *const [N]u8) [256]u8 {
     var table = [_]u8{0xFF} ** 256;
     for (alphabet, 0..) |c, i| {
         table[c] = @intCast(i);
     }
-    table['='] = 0xFE;
-    return table;
-}
-
-fn makeDecodeTable58(comptime alphabet: *const [58]u8) [256]u8 {
-    var table = [_]u8{0xFF} ** 256;
-    for (alphabet, 0..) |c, i| {
-        table[c] = @intCast(i);
+    if (N == 64) {
+        table['='] = 0xFE;
     }
     return table;
 }
