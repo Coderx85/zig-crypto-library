@@ -4,14 +4,16 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
-    "strict": true,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
     "types": ["node"],
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "paths": {
       "@": ["./index.ts"],
       "@types/*": ["./types/*"]
@@ -22,7 +24,9 @@
     "types/**/*.ts",
     "test/**/*.ts",
     "examples/**/*.ts",
-    "node-gyp-build.d.ts"
+    "node-gyp-build.d.ts",
+    "scripts/**/*.ts",
+    "scripts/bump-version.js"
   ],
   "exclude": ["node_modules", "dist"]
 }
