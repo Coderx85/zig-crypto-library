@@ -1,0 +1,8 @@
+❯ zig build build.zig
+info: access the help menu with "zig build -h"
+error: no step named 'build.zig'
+error: the following build command failed with exit code 1:
+.zig-cache/o/1040e30f89b178c2813be4d1fa9dc57e/build /home/linuxbrew/.linuxbrew/Cellar/zig/0.16.0_1/bin/zig /home/linuxbrew/.linuxbrew/Cellar/zig/0.16.0_1/lib/zig /home/coderx85/Projects/Work/.GITHUB/zig-crypto/zig-crypto-main .zig-cache /home/coderx85/.cache/zig --seed 0xc0f75c3f -Z40a704f4d928be78 build.zig
+
+~/Projects/Work/.GITHUB/zig-crypto/zig-crypto-main main* 
+❯
