@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "858fabe05e85",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "base64.o",
+    "build.zig",
+    "package.json",
+    "src/codec/base58.zig",
+    "src/codec/base64.zig",
+    "tsconfig.json"
+  ],
+  "sessions": [
+    {
+      "metadata": "/85/8fabe05e85/0/metadata.json",
+      "transcript": "/85/8fabe05e85/0/full.jsonl",
+      "content_hash": "/85/8fabe05e85/0/content_hash.txt",
+      "prompt": ""
+    }
+  ]
+}

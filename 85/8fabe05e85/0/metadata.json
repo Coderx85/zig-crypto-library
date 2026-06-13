@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "858fabe05e85",
+  "session_id": "0fdb7f9b-cebc-4dea-b228-36076902278e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-13T05:22:35.907076931Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "base64.o",
+    "build.zig",
+    "package.json",
+    "src/codec/base58.zig",
+    "src/codec/base64.zig",
+    "tsconfig.json"
+  ],
+  "agent": "Gemini CLI",
+  "model": "gemini-2.5-flash",
+  "turn_id": "ed536b7f5029",
+  "initial_attribution": {
+    "calculated_at": "2026-06-13T05:22:35.905027452Z",
+    "agent_lines": 98,
+    "agent_removed": 111,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 98,
+    "total_lines_changed": 209,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
