@@ -26,7 +26,11 @@
     "examples/**/*.ts",
     "node-gyp-build.d.ts",
     "scripts/**/*.ts",
-    "scripts/bump-version.js"
+    "scripts/bump-version.js",
+    "src/lib/index.ts",
+    "src/lib/nanoid.types.ts",
+    "src/lib/native.types.ts",
+    "src/lib/snowflake.types.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

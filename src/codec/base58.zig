@@ -15,11 +15,15 @@ const BASE: u8 = 58;
 const STACK_THRESH: usize = 4096;
 
 pub inline fn encodeLen(input_len: usize) usize {
-    return if (input_len == 0) 0 else input_len * 138 / 100 + 2;
+    if (!input_len) return 0;
+
+    return (input_len * 138 / 100) + 1;
 }
 
 pub inline fn decodeLen(input_len: usize) usize {
-    return if (input_len == 0) 0 else (input_len + 1) * 733 / 1000 + 1;
+    if (!input_len) return 0;
+
+    return (input_len + 1) * 733 / 1000 + 1;
 }
 
 pub fn encode(input: []const u8, output: []u8) !usize {
