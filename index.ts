@@ -22,6 +22,38 @@ interface NativeBindings {
   base58Decode(data: string): ArrayBuffer;
   hexEncode(data: Buffer, options?: { upper?: boolean }): string;
   hexDecode(data: string): ArrayBuffer;
+  zstSign(
+    payload: string,
+    key: Buffer,
+    options?: {
+      expiresIn?: number | string;
+      notBefore?: number | string;
+      audience?: string;
+      issuer?: string;
+      subject?: string;
+      jwtid?: string;
+      rev?: number;
+    }
+  ): string;
+  zstVerify(
+    token: string,
+    key: Buffer,
+    options?: {
+      audience?: string;
+      issuer?: string;
+      subject?: string;
+      jwtid?: string;
+      currentRev?: number;
+      clockTolerance?: number;
+      clockTimestamp?: number;
+      maxAge?: number | string;
+      complete?: boolean;
+      ignoreExpiration?: boolean;
+      ignoreNotBefore?: boolean;
+    }
+  ): string;
+  zstDecode(token: string): string;
+  zstGenerateKey(length?: number): Buffer;
 }
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
@@ -102,6 +134,182 @@ export interface HexModule {
   encode(data: Buffer, options?: HexOptions): string;
   decode(data: string): Buffer;
 }
+
+// ── ZST ────────────────────────────────────────────────
+
+export class ZstError extends Error {
+  name = "ZstError" as const;
+}
+
+export class ZstExpiredError extends ZstError {
+  name = "ZstExpiredError" as const;
+  expiredAt: Date;
+  constructor(message: string, expiredAt?: Date) {
+    super(message);
+    this.expiredAt = expiredAt ?? new Date();
+  }
+}
+
+export class ZstNotBeforeError extends ZstError {
+  name = "ZstNotBeforeError" as const;
+  date: Date;
+  constructor(message: string, date?: Date) {
+    super(message);
+    this.date = date ?? new Date();
+  }
+}
+
+export class ZstAudienceError extends ZstError {
+  name = "ZstAudienceError" as const;
+}
+
+export class ZstIssuerError extends ZstError {
+  name = "ZstIssuerError" as const;
+}
+
+export class ZstSubjectError extends ZstError {
+  name = "ZstSubjectError" as const;
+}
+
+export class ZstJwtIdError extends ZstError {
+  name = "ZstJwtIdError" as const;
+}
+
+export class ZstRevokedError extends ZstError {
+  name = "ZstRevokedError" as const;
+}
+
+function throwZstError(errorJson: string): never {
+  const parsed = JSON.parse(errorJson) as { code: string; message: string };
+  switch (parsed.code) {
+    case "expired":
+      throw new ZstExpiredError(parsed.message);
+    case "not_before":
+      throw new ZstNotBeforeError(parsed.message);
+    case "audience":
+      throw new ZstAudienceError(parsed.message);
+    case "issuer":
+      throw new ZstIssuerError(parsed.message);
+    case "subject":
+      throw new ZstSubjectError(parsed.message);
+    case "jwt_id":
+      throw new ZstJwtIdError(parsed.message);
+    case "revoked":
+      throw new ZstRevokedError(parsed.message);
+    default:
+      throw new ZstError(parsed.message);
+  }
+}
+
+export interface ZstSignOptions {
+  expiresIn?: number | string;
+  notBefore?: string;
+  audience?: string;
+  issuer?: string;
+  subject?: string;
+  jwtid?: string;
+  rev?: number;
+  header?: Record<string, any>;
+  mutatePayload?: boolean;
+}
+
+export interface ZstVerifyOptions {
+  audience?: string;
+  issuer?: string;
+  subject?: string;
+  jwtid?: string;
+  currentRev?: number;
+  clockTolerance?: number;
+  clockTimestamp?: number;
+  maxAge?: number | string;
+  complete?: boolean;
+  ignoreExpiration?: boolean;
+  ignoreNotBefore?: boolean;
+}
+
+export interface ZstDecodeOptions {
+  complete?: boolean;
+}
+
+export interface ZstPayload {
+  sub: string;
+  aud: string;
+  exp: number;
+  iat: number;
+  jti: string;
+  rev: number;
+  iss?: string;
+  nbf?: number;
+  [key: string]: any;
+}
+
+export interface ZstHeader {
+  ver: string;
+  typ: string;
+  mode: "local" | "public";
+}
+
+export interface ZstCompleteResult {
+  payload: ZstPayload;
+  header: ZstHeader;
+}
+
+export interface ZstDecodedHeader {
+  ver: string;
+  typ: string;
+  mode: string;
+  encrypted: boolean;
+}
+
+export interface ZstModule {
+  sign(
+    payload: object | string | Buffer,
+    secret: string | Buffer | Uint8Array,
+    options?: ZstSignOptions
+  ): string;
+  verify(
+    token: string,
+    secret: string | Buffer | Uint8Array,
+    options?: ZstVerifyOptions
+  ): ZstPayload;
+  decode(token: string, options?: ZstDecodeOptions): ZstDecodedHeader;
+  generateKey(length?: number): Buffer;
+}
+
+export const zst: ZstModule = {
+  sign(payload, secret, options?) {
+    const keyBuf = Buffer.isBuffer(secret)
+      ? secret
+      : typeof secret === "string"
+        ? Buffer.from(secret)
+        : Buffer.from(secret);
+    const payloadStr =
+      typeof payload === "string" ? payload : JSON.stringify(payload);
+    return load.zstSign(payloadStr, keyBuf, options);
+  },
+  verify(token, secret, options?) {
+    const keyBuf = Buffer.isBuffer(secret)
+      ? secret
+      : typeof secret === "string"
+        ? Buffer.from(secret)
+        : Buffer.from(secret);
+    const result = load.zstVerify(token, keyBuf, options);
+    try {
+      return JSON.parse(result) as ZstPayload;
+    } catch {
+      throwZstError(result);
+    }
+  },
+  decode(token, options?) {
+    const result = load.zstDecode(token);
+    return JSON.parse(result) as ZstDecodedHeader;
+  },
+  generateKey(length?: number): Buffer {
+    return load.zstGenerateKey(length);
+  },
+};
+
+// ── Codec (base64) ────────────────────────────────────
 
 export const codec: { base64: Base64Module; base58: Base58Module; hex: HexModule } = {
   base64: {

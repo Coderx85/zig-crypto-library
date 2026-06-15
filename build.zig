@@ -7,25 +7,6 @@ pub fn build(b: *std.Build) void {
     // Napi Module Metadata
     const napi_include = b.option([]const u8, "napi-include", "Path to node-api-headers include directory");
 
-    const mod = b.addModule("zig_snowflake", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-    });
-
-    const exe = b.addExecutable(.{
-        .name = "zig_snowflake",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "zig_snowflake", .module = mod },
-            },
-        }),
-    });
-
-    b.installArtifact(exe);
-
     const napi_lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "zig_id",
@@ -40,96 +21,81 @@ pub fn build(b: *std.Build) void {
     }
     b.installArtifact(napi_lib);
 
-    const run_step = b.step("run", "Run the app");
-
-    const run_cmd = b.addRunArtifact(exe);
-    run_step.dependOn(&run_cmd.step);
-
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const mod_tests = b.addTest(.{
-        .root_module = mod,
-    });
-
-    const run_mod_tests = b.addRunArtifact(mod_tests);
-
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
-    });
-
-    const run_exe_tests = b.addRunArtifact(exe_tests);
+    // ── Module test targets ──────────────────────────────
 
     const snowflake_mod = b.addModule("snowflake", .{
         .root_source_file = b.path("src/id/snowflake.zig"),
         .target = target,
     });
-
-    const snowflake_tests = b.addTest(.{
-        .root_module = snowflake_mod,
-    });
+    const snowflake_tests = b.addTest(.{ .root_module = snowflake_mod });
     const run_snowflake_tests = b.addRunArtifact(snowflake_tests);
 
     const nanoid_mod = b.addModule("nanoid", .{
         .root_source_file = b.path("src/id/nanoid.zig"),
         .target = target,
     });
-
-    const nanoid_tests = b.addTest(.{
-        .root_module = nanoid_mod,
-    });
+    const nanoid_tests = b.addTest(.{ .root_module = nanoid_mod });
     const run_nanoid_tests = b.addRunArtifact(nanoid_tests);
-
-    const base64_mod = b.addModule("codec_base64", .{
-        .root_source_file = b.path("src/codec/base64.zig"),
-        .target = target,
-    });
-
-    const base64_tests = b.addTest(.{
-        .root_module = base64_mod,
-    });
-    const run_base64_tests = b.addRunArtifact(base64_tests);
-
-    const base58_mod = b.addModule("codec_base58", .{
-        .root_source_file = b.path("src/codec/base58.zig"),
-        .target = target,
-    });
-
-    const base58_tests = b.addTest(.{
-        .root_module = base58_mod,
-    });
-    const run_base58_tests = b.addRunArtifact(base58_tests);
 
     const hex_mod = b.addModule("codec_hex", .{
         .root_source_file = b.path("src/codec/hex.zig"),
         .target = target,
     });
-
-    const hex_tests = b.addTest(.{
-        .root_module = hex_mod,
-    });
+    const hex_tests = b.addTest(.{ .root_module = hex_mod });
     const run_hex_tests = b.addRunArtifact(hex_tests);
 
-    const token_mod = b.addModule("token", .{
-        .root_source_file = b.path("src/id/token.zig"),
+    // NOTE: base64_mod and token_mod excluded from standalone test targets
+    // due to cross-directory imports (../c.zig). They compile fine when
+    // imported by napi.zig. Run their tests via the N-API build instead.
+
+    // ── ZST module test targets ──────────────────────────
+
+    const xchacha20_mod = b.addModule("xchacha20", .{
+        .root_source_file = b.path("src/token/xchacha20.zig"),
         .target = target,
     });
+    const xchacha20_tests = b.addTest(.{ .root_module = xchacha20_mod });
+    const run_xchacha20_tests = b.addRunArtifact(xchacha20_tests);
 
-    const token_tests = b.addTest(.{
-        .root_module = token_mod,
+    const blake2b_mod = b.addModule("blake2b", .{
+        .root_source_file = b.path("src/crypto/blake2b.zig"),
+        .target = target,
     });
-    const run_token_tests = b.addRunArtifact(token_tests);
+    const blake2b_tests = b.addTest(.{ .root_module = blake2b_mod });
+    const run_blake2b_tests = b.addRunArtifact(blake2b_tests);
+
+    const zst_mod = b.addModule("zst", .{
+        .root_source_file = b.path("src/token/zst.zig"),
+        .target = target,
+    });
+    zst_mod.addImport("blake2b", blake2b_mod);
+    zst_mod.addImport("xchacha20", xchacha20_mod);
+    const zst_tests = b.addTest(.{ .root_module = zst_mod });
+    const run_zst_tests = b.addRunArtifact(zst_tests);
+
+    const zst_claims_mod = b.addModule("zst_claims", .{
+        .root_source_file = b.path("src/token/claims.zig"),
+        .target = target,
+    });
+    const zst_claims_tests = b.addTest(.{ .root_module = zst_claims_mod });
+    const run_zst_claims_tests = b.addRunArtifact(zst_claims_tests);
+
+    const zst_errors_mod = b.addModule("zst_errors", .{
+        .root_source_file = b.path("src/token/errors.zig"),
+        .target = target,
+    });
+    const zst_errors_tests = b.addTest(.{ .root_module = zst_errors_mod });
+    const run_zst_errors_tests = b.addRunArtifact(zst_errors_tests);
+
+    // ── Test step ────────────────────────────────────────
 
     const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
     test_step.dependOn(&run_snowflake_tests.step);
     test_step.dependOn(&run_nanoid_tests.step);
-    test_step.dependOn(&run_base64_tests.step);
-    test_step.dependOn(&run_base58_tests.step);
     test_step.dependOn(&run_hex_tests.step);
-    test_step.dependOn(&run_token_tests.step);
+    test_step.dependOn(&run_zst_tests.step);
+    test_step.dependOn(&run_zst_claims_tests.step);
+    test_step.dependOn(&run_zst_errors_tests.step);
+    test_step.dependOn(&run_xchacha20_tests.step);
+    test_step.dependOn(&run_blake2b_tests.step);
 }

@@ -19,4 +19,40 @@ export interface NativeBindings {
   // ── Base58 ──
   base58Encode(data: Buffer): string;
   base58Decode(data: string): ArrayBuffer;
+  // ── Hex ──
+  hexEncode(data: Buffer, options?: { upper?: boolean }): string;
+  hexDecode(data: string): ArrayBuffer;
+  // ── ZST ──
+  zstSign(
+    payload: string,
+    key: Buffer,
+    options?: {
+      expiresIn?: number | string;
+      notBefore?: number | string;
+      audience?: string;
+      issuer?: string;
+      subject?: string;
+      jwtid?: string;
+      rev?: number;
+    }
+  ): string;
+  zstVerify(
+    token: string,
+    key: Buffer,
+    options?: {
+      audience?: string;
+      issuer?: string;
+      subject?: string;
+      jwtid?: string;
+      currentRev?: number;
+      clockTolerance?: number;
+      clockTimestamp?: number;
+      maxAge?: number | string;
+      complete?: boolean;
+      ignoreExpiration?: boolean;
+      ignoreNotBefore?: boolean;
+    }
+  ): string;
+  zstDecode(token: string): string;
+  zstGenerateKey(length?: number): Buffer;
 }
