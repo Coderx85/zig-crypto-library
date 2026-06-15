@@ -55,8 +55,6 @@ pub const DecodedHeader = struct {
     encrypted: bool,
 };
 
-pub const TOKEN_PREFIX = "zst_v1.local.";
-
 const JsonWriter = struct {
     buf: []u8,
     pos: usize,
@@ -195,10 +193,6 @@ test "serialize minimal claims" {
     const json = try serializeClaimsJson(&buf, claims);
     try std.testing.expect(std.mem.containsAtLeast(u8, json, 1, "\"sub\":\"user_123\""));
     try std.testing.expect(std.mem.containsAtLeast(u8, json, 1, "\"exp\":1700000000"));
-}
-
-test "token prefix" {
-    try std.testing.expectEqualStrings("zst_v1.local.", TOKEN_PREFIX);
 }
 
 test "serialize empty claims" {

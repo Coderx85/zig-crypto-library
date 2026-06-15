@@ -23,6 +23,13 @@ pub fn build(b: *std.Build) void {
 
     // ── Module test targets ──────────────────────────────
 
+    const rand_mod = b.addModule("rand", .{
+        .root_source_file = b.path("src/crypto/rand.zig"),
+        .target = target,
+    });
+    const rand_tests = b.addTest(.{ .root_module = rand_mod });
+    const run_rand_tests = b.addRunArtifact(rand_tests);
+
     const snowflake_mod = b.addModule("snowflake", .{
         .root_source_file = b.path("src/id/snowflake.zig"),
         .target = target,
@@ -34,6 +41,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/id/nanoid.zig"),
         .target = target,
     });
+    nanoid_mod.addImport("rand", rand_mod);
     const nanoid_tests = b.addTest(.{ .root_module = nanoid_mod });
     const run_nanoid_tests = b.addRunArtifact(nanoid_tests);
 
@@ -70,6 +78,7 @@ pub fn build(b: *std.Build) void {
     });
     zst_mod.addImport("blake2b", blake2b_mod);
     zst_mod.addImport("xchacha20", xchacha20_mod);
+    zst_mod.addImport("rand", rand_mod);
     const zst_tests = b.addTest(.{ .root_module = zst_mod });
     const run_zst_tests = b.addRunArtifact(zst_tests);
 
@@ -93,6 +102,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_snowflake_tests.step);
     test_step.dependOn(&run_nanoid_tests.step);
     test_step.dependOn(&run_hex_tests.step);
+    test_step.dependOn(&run_rand_tests.step);
     test_step.dependOn(&run_zst_tests.step);
     test_step.dependOn(&run_zst_claims_tests.step);
     test_step.dependOn(&run_zst_errors_tests.step);

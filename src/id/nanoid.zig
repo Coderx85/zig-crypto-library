@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const rand = @import("rand");
 
 pub const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 comptime {
@@ -29,34 +30,15 @@ threadlocal var fast_offset: usize = POOL_SIZE;
 threadlocal var fast_prng: std.Random.DefaultPrng = undefined;
 threadlocal var fast_prng_ready: bool = false;
 
-fn fillRandom(buf: []u8) void {
-    switch (comptime builtin.os.tag) {
-        .linux => {
-            var filled: usize = 0;
-            while (filled < buf.len) {
-                const rc = std.os.linux.getrandom(buf[filled..].ptr, buf.len - filled, 0);
-                filled += rc;
-            }
-        },
-        .macos, .ios, .watchos, .tvos => {
-            std.c.arc4random_buf(buf.ptr, buf.len);
-        },
-        .windows => {
-            _ = std.os.windows.BCryptGenRandom(null, buf.ptr, buf.len, 0x00000002);
-        },
-        else => @compileError("Unsupported OS for CSPRNG"),
-    }
-}
-
 inline fn refillPool() void {
-    fillRandom(rand_pool[0..]);
+    rand.fillRandom(rand_pool[0..]);
     pool_offset = 0;
 }
 
 inline fn refillFastPool() void {
     if (!fast_prng_ready) {
         var seed: u64 = undefined;
-        fillRandom(std.mem.asBytes(&seed));
+        rand.fillRandom(std.mem.asBytes(&seed));
         fast_prng = std.Random.DefaultPrng.init(seed);
         fast_prng_ready = true;
     }

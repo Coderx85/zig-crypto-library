@@ -4,6 +4,7 @@ const claims_mod = @import("claims.zig");
 const errors_mod = @import("errors.zig");
 const blake2b = @import("blake2b");
 const xchacha20 = @import("xchacha20");
+const rand = @import("rand");
 
 pub const Claims = claims_mod.Claims;
 pub const Header = claims_mod.Header;
@@ -48,29 +49,10 @@ pub const VerifyResult = struct {
     header: DecodedHeader,
 };
 
-pub fn fillRandom(buf: []u8) void {
-    switch (builtin.os.tag) {
-        .linux => {
-            var filled: usize = 0;
-            while (filled < buf.len) {
-                const rc = std.os.linux.getrandom(buf[filled..].ptr, buf.len - filled, 0);
-                filled += rc;
-            }
-        },
-        .macos, .ios, .watchos, .tvos => {
-            std.c.arc4random_buf(buf.ptr, buf.len);
-        },
-        .windows => {
-            _ = std.os.windows.BCryptGenRandom(null, buf.ptr, buf.len, 0x00000002);
-        },
-        else => @compileError("Unsupported OS for CSPRNG"),
-    }
-}
-
 pub fn generateKey(allocator: std.mem.Allocator, length: usize) ![]u8 {
     if (length < MIN_KEY_LEN) return error.KeyTooShort;
     const buf = try allocator.alloc(u8, length);
-    fillRandom(buf);
+    rand.fillRandom(buf);
     return buf;
 }
 
@@ -99,7 +81,7 @@ pub fn sign(allocator: std.mem.Allocator, payload: []const u8, key: []const u8, 
 
     // 5. Generate random nonce
     var nonce: [NONCE_LEN]u8 = undefined;
-    fillRandom(&nonce);
+    rand.fillRandom(&nonce);
 
     // 6. Encrypt with XChaCha20-Poly1305
     const encrypted = xchacha20.encrypt(allocator, claims_json, &enc_key, &nonce) catch return error.EncryptionFailed;
@@ -122,6 +104,7 @@ pub fn sign(allocator: std.mem.Allocator, payload: []const u8, key: []const u8, 
     // 8. Package into token format: zst_v1.local.<header_b64>.<nonce_b64>.<ciphertext_b64>.<tag_b64>
     const token_len = TOKEN_PREFIX.len + header_b64.len + 1 + nonce_b64.len + 1 + ciphertext_b64.len + 1 + tag_b64.len;
     const token = allocator.alloc(u8, token_len) catch return error.AllocFailed;
+    errdefer allocator.free(token);
     var pos: usize = 0;
 
     @memcpy(token[pos..][0..TOKEN_PREFIX.len], TOKEN_PREFIX);
@@ -157,15 +140,7 @@ pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, 
     // 1. Parse token format: zst_v1.local.<header_b64>.<nonce_b64>.<ciphertext_b64>.<tag_b64>
     const parts = splitToken(token) catch return error.MalformedToken;
 
-    // 2. Decode header (just verify format, not cryptographic)
-    _ = DecodedHeader{
-        .ver = VERSION,
-        .typ = TYPE,
-        .mode = MODE,
-        .encrypted = true,
-    };
-
-    // 3. Base64url-decode parts
+    // 2. Base64url-decode parts
     const nonce = base64urlDecodeAlloc(allocator, parts.nonce) catch return error.MalformedToken;
     defer allocator.free(nonce);
     const ciphertext = base64urlDecodeAlloc(allocator, parts.ciphertext) catch return error.MalformedToken;
@@ -176,11 +151,11 @@ pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, 
     if (nonce.len != NONCE_LEN) return error.MalformedToken;
     if (tag_bytes.len != TAG_LEN) return error.MalformedToken;
 
-    // 4. Derive encryption key using BLAKE2b KDF
+    // 3. Derive encryption key using BLAKE2b KDF
     var enc_key: [32]u8 = undefined;
     blake2b.deriveKey(key, "zst-v1-local-encryption", &enc_key);
 
-    // 5. Verify tag (constant-time comparison)
+    // 4. Verify tag (constant-time comparison)
     var tag: [TAG_LEN]u8 = undefined;
     @memcpy(&tag, tag_bytes);
     const expected_tag = xchacha20.poly1305ComputeTag(ciphertext, &enc_key);
@@ -188,74 +163,51 @@ pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, 
         return error.InvalidSignature;
     }
 
-    // 6. Decrypt ciphertext
+    // 5. Decrypt ciphertext
     var nonce_arr: [NONCE_LEN]u8 = undefined;
     @memcpy(&nonce_arr, nonce);
     const plaintext = xchacha20Decrypt(allocator, ciphertext, &enc_key, &nonce_arr) catch return error.DecryptionFailed;
     defer allocator.free(plaintext);
 
-    // 7. Parse claims JSON
+    // 6. Parse claims JSON
     const claims = claims_mod.parseClaimsJson(allocator, plaintext) catch return error.InvalidPayload;
+    errdefer freeClaims(allocator, claims);
 
-    // 8. Validate claims
+    // 7. Validate claims
     const now: u64 = options.clock_timestamp orelse getCurrentTimestamp();
 
-    // Expiration check
     if (!options.ignore_expiration) {
         if (claims.exp) |exp| {
-            if (now > exp + options.clock_tolerance) {
-                freeClaims(allocator, claims);
-                return error.Expired;
-            }
+            if (now > exp + options.clock_tolerance) return error.Expired;
         }
     }
 
-    // Not-before check
     if (!options.ignore_not_before) {
         if (claims.nbf) |nbf| {
-            if (now < nbf -| options.clock_tolerance) {
-                freeClaims(allocator, claims);
-                return error.NotBefore;
-            }
+            if (now < nbf -| options.clock_tolerance) return error.NotBefore;
         }
     }
 
-    // Audience check
     if (options.audience) |aud| {
         if (claims.aud) |token_aud| {
-            if (!std.mem.eql(u8, aud, token_aud)) {
-                freeClaims(allocator, claims);
-                return error.AudienceMismatch;
-            }
+            if (!std.mem.eql(u8, aud, token_aud)) return error.AudienceMismatch;
         }
     }
 
-    // Issuer check
     if (options.issuer) |iss| {
         if (claims.iss) |token_iss| {
-            if (!std.mem.eql(u8, iss, token_iss)) {
-                freeClaims(allocator, claims);
-                return error.IssuerMismatch;
-            }
+            if (!std.mem.eql(u8, iss, token_iss)) return error.IssuerMismatch;
         }
     }
 
-    // Subject check
     if (options.subject) |sub| {
         if (claims.sub) |token_sub| {
-            if (!std.mem.eql(u8, sub, token_sub)) {
-                freeClaims(allocator, claims);
-                return error.SubjectMismatch;
-            }
+            if (!std.mem.eql(u8, sub, token_sub)) return error.SubjectMismatch;
         }
     }
 
-    // Revocation check
     if (claims.rev) |token_rev| {
-        if (token_rev < options.current_rev) {
-            freeClaims(allocator, claims);
-            return error.Revoked;
-        }
+        if (token_rev < options.current_rev) return error.Revoked;
     }
 
     return .{
@@ -408,50 +360,6 @@ test "constants token prefix matches format" {
     // Token format: zst_v1.local.<header_b64>.<nonce_b64>.<ciphertext_b64>.<tag_b64>
     try std.testing.expect(std.mem.startsWith(u8, TOKEN_PREFIX, "zst_v1"));
     try std.testing.expect(std.mem.endsWith(u8, TOKEN_PREFIX, "."));
-}
-
-// ── fillRandom ──────────────────────────────────────────
-
-test "fillRandom produces non-zero output" {
-    var buf: [32]u8 = undefined;
-    fillRandom(&buf);
-    var all_zero = true;
-    for (buf) |b| {
-        if (b != 0) {
-            all_zero = false;
-            break;
-        }
-    }
-    try std.testing.expect(!all_zero);
-}
-
-test "fillRandom produces different output on successive calls" {
-    var buf1: [32]u8 = undefined;
-    var buf2: [32]u8 = undefined;
-    fillRandom(&buf1);
-    fillRandom(&buf2);
-    // Two random 32-byte buffers should not be equal (probability ~0)
-    try std.testing.expect(!std.mem.eql(u8, &buf1, &buf2));
-}
-
-test "fillRandom works for various sizes" {
-    var buf1: [1]u8 = undefined;
-    fillRandom(&buf1);
-
-    var buf2: [16]u8 = undefined;
-    fillRandom(&buf2);
-
-    var buf3: [64]u8 = undefined;
-    fillRandom(&buf3);
-
-    var buf4: [256]u8 = undefined;
-    fillRandom(&buf4);
-
-    // Just verify no crashes; content is random
-    try std.testing.expect(buf1.len == 1);
-    try std.testing.expect(buf2.len == 16);
-    try std.testing.expect(buf3.len == 64);
-    try std.testing.expect(buf4.len == 256);
 }
 
 // ── generateKey ─────────────────────────────────────────
