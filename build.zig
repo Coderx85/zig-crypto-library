@@ -64,7 +64,7 @@ pub fn build(b: *std.Build) void {
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
     const snowflake_mod = b.addModule("snowflake", .{
-        .root_source_file = b.path("src/internal/snowflake.zig"),
+        .root_source_file = b.path("src/id/snowflake.zig"),
         .target = target,
     });
 
@@ -74,7 +74,7 @@ pub fn build(b: *std.Build) void {
     const run_snowflake_tests = b.addRunArtifact(snowflake_tests);
 
     const nanoid_mod = b.addModule("nanoid", .{
-        .root_source_file = b.path("src/internal/nanoid.zig"),
+        .root_source_file = b.path("src/id/nanoid.zig"),
         .target = target,
     });
 
@@ -103,6 +103,26 @@ pub fn build(b: *std.Build) void {
     });
     const run_base58_tests = b.addRunArtifact(base58_tests);
 
+    const hex_mod = b.addModule("codec_hex", .{
+        .root_source_file = b.path("src/codec/hex.zig"),
+        .target = target,
+    });
+
+    const hex_tests = b.addTest(.{
+        .root_module = hex_mod,
+    });
+    const run_hex_tests = b.addRunArtifact(hex_tests);
+
+    const token_mod = b.addModule("token", .{
+        .root_source_file = b.path("src/id/token.zig"),
+        .target = target,
+    });
+
+    const token_tests = b.addTest(.{
+        .root_module = token_mod,
+    });
+    const run_token_tests = b.addRunArtifact(token_tests);
+
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
@@ -110,4 +130,6 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_nanoid_tests.step);
     test_step.dependOn(&run_base64_tests.step);
     test_step.dependOn(&run_base58_tests.step);
+    test_step.dependOn(&run_hex_tests.step);
+    test_step.dependOn(&run_token_tests.step);
 }
