@@ -164,4 +164,31 @@ pub fn createExternalBuffer(
     return result;
 }
 
+pub fn getDouble(env: c.napi_env, value: c.napi_value) !f64 {
+    var result: f64 = undefined;
+    if (c.napi_get_value_double(env, value, &result) != c.napi_ok) {
+        return throw(env, "Expected number");
+    }
+    return result;
+}
+
+pub fn getOptionalString(env: c.napi_env, obj: c.napi_value, comptime name: [:0]const u8, allocator: std.mem.Allocator) !?[]const u8 {
+    if (!try hasNamedProperty(env, obj, name)) return null;
+    const val = try getNamedProperty(env, obj, name);
+    var val_type: c.napi_valuetype = undefined;
+    if (c.napi_typeof(env, val, &val_type) != c.napi_ok) return null;
+    if (val_type == c.napi_undefined or val_type == c.napi_null) return null;
+    return getString(env, val, allocator);
+}
+
+pub fn getOptionalUint64(env: c.napi_env, obj: c.napi_value, comptime name: [:0]const u8) !?u64 {
+    if (!try hasNamedProperty(env, obj, name)) return null;
+    const val = try getNamedProperty(env, obj, name);
+    var val_type: c.napi_valuetype = undefined;
+    if (c.napi_typeof(env, val, &val_type) != c.napi_ok) return null;
+    if (val_type == c.napi_undefined or val_type == c.napi_null) return null;
+    const num = try getDouble(env, val);
+    return @intFromFloat(num);
+}
+
 
