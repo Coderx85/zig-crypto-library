@@ -20,6 +20,8 @@ interface NativeBindings {
   ): ArrayBuffer;
   base58Encode(data: Buffer): string;
   base58Decode(data: string): ArrayBuffer;
+  hexEncode(data: Buffer, options?: { upper?: boolean }): string;
+  hexDecode(data: string): ArrayBuffer;
 }
 
 const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
@@ -92,7 +94,16 @@ export interface Base58Module {
   decode(data: string): Buffer;
 }
 
-export const codec: { base64: Base64Module; base58: Base58Module } = {
+export interface HexOptions {
+  upper?: boolean;
+}
+
+export interface HexModule {
+  encode(data: Buffer, options?: HexOptions): string;
+  decode(data: string): Buffer;
+}
+
+export const codec: { base64: Base64Module; base58: Base58Module; hex: HexModule } = {
   base64: {
     encode(data: Buffer, options?: Base64Options): string {
       return load.base64EncodeStr(data, options);
@@ -115,6 +126,14 @@ export const codec: { base64: Base64Module; base58: Base58Module } = {
     },
     decode(data: string): Buffer {
       return Buffer.from(load.base58Decode(data));
+    },
+  },
+  hex: {
+    encode(data: Buffer, options?: HexOptions): string {
+      return load.hexEncode(data, options);
+    },
+    decode(data: string): Buffer {
+      return Buffer.from(load.hexDecode(data));
     },
   },
 };
