@@ -4,15 +4,7 @@ doc/
 # Ignore the zig build directory
 .zig-cache/
 build.zig.zon
-
-# Ignore the Agnet CLI 
-.agents/
-.claude/
-.entire
-.gemini/
-.github/hooks/entire.json
-.opencode/
-skills-lock.json
+zig-out/
 
 # VSCode settings and extensions
 .vscode/
@@ -27,6 +19,4 @@ dist/
 .env.development
 .env.production
 .env.local
-.envzig-out/
-zig-out/
 .env
