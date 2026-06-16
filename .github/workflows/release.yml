@@ -5,6 +5,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   test:
     strategy:
@@ -42,6 +46,12 @@ jobs:
           if [ -f zig-out/lib/libzig_id.dylib ]; then cp zig-out/lib/libzig_id.dylib dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
           if [ -f zig-out/bin/zig_id.dll ]; then cp zig-out/bin/zig_id.dll dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
           ls -la dist/bin/${ARCH}-${PLATFORM}/
+      - name: Upload prebuild
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}-${{ runner.os == 'Linux' && 'linux-gnu' || runner.os == 'macOS' && 'macos' || 'windows' }}
+          path: dist/bin/
+          if-no-files-found: error
 
   build-cross:
     strategy:
