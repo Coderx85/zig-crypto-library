@@ -66,11 +66,28 @@ pub const SnowflakeState = struct {
     }
 };
 
+extern "kernel32" fn GetSystemTimeAsFileTime(out: ?*std.os.windows.FILETIME) callconv(.c) void;
+extern "kernel32" fn GetEnvironmentVariableW(name: [*:0]const u16, buf: ?[*]u16, size: u32) callconv(.c) u32;
+
 fn deriveNodeId() u10 {
-    var buf: [std.posix.HOST_NAME_MAX]u8 = undefined;
-    const hostname = std.posix.gethostname(&buf) catch return 0;
-    const hash = std.hash.Wyhash.hash(0, hostname);
-    return @as(u10, @truncate(hash));
+    return switch (builtin.os.tag) {
+        .windows => {
+            const name_w = [_:0]u16{ 'C', 'O', 'M', 'P', 'U', 'T', 'E', 'R', 'N', 'A', 'M', 'E' };
+            var buf: [256]u16 = undefined;
+            const len = GetEnvironmentVariableW(&name_w, &buf, buf.len);
+            if (len == 0 or len > buf.len) return 0;
+            const name_utf8 = std.unicode.utf16LeToUtf8Alloc(std.heap.page_allocator, buf[0..len]) catch return 0;
+            defer std.heap.page_allocator.free(name_utf8);
+            const hash = std.hash.Wyhash.hash(0, name_utf8);
+            return @as(u10, @truncate(hash));
+        },
+        else => {
+            var buf: [std.posix.HOST_NAME_MAX]u8 = undefined;
+            const hostname = std.posix.gethostname(&buf) catch return 0;
+            const hash = std.hash.Wyhash.hash(0, hostname);
+            return @as(u10, @truncate(hash));
+        },
+    };
 }
 
 fn timestampMs() u64 {
@@ -84,6 +101,13 @@ fn timestampMs() u64 {
             var ts: std.c.timespec = undefined;
             _ = std.c.clock_gettime(@enumFromInt(0), &ts);
             return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1000000;
+        },
+        .windows => {
+            var ft: std.os.windows.FILETIME = undefined;
+            GetSystemTimeAsFileTime(&ft);
+            const t: u64 = (@as(u64, ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+            const epoch_diff: u64 = 116444736000000000;
+            return (t - epoch_diff) / 10000;
         },
         else => @compileError("unsupported OS"),
     };

@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+extern "bcryptprimitives" fn ProcessPrng(pbBuffer: [*]u8, cbBuffer: usize) callconv(.c) i32;
+
 pub fn fillRandom(buf: []u8) void {
     switch (builtin.os.tag) {
         .linux => {
@@ -14,7 +16,7 @@ pub fn fillRandom(buf: []u8) void {
             std.c.arc4random_buf(buf.ptr, buf.len);
         },
         .windows => {
-            _ = std.os.windows.BCryptGenRandom(null, buf.ptr, buf.len, 0x00000002);
+            _ = ProcessPrng(buf.ptr, buf.len);
         },
         else => @compileError("Unsupported OS for CSPRNG"),
     }

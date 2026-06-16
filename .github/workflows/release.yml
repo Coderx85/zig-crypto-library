@@ -38,7 +38,10 @@ jobs:
           ARCH=${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}
           PLATFORM=${{ runner.os == 'Linux' && 'linux-gnu' || runner.os == 'macOS' && 'macos' || 'windows' }}
           mkdir -p dist/bin/${ARCH}-${PLATFORM}
-          cp zig-out/lib/libzig_id.* dist/bin/${ARCH}-${PLATFORM}/zig-id.node 2>/dev/null || cp zig-out/bin/zig_id.dll dist/bin/${ARCH}-${PLATFORM}/zig-id.node 2>/dev/null || true
+          if [ -f zig-out/lib/libzig_id.so ]; then cp zig-out/lib/libzig_id.so dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
+          if [ -f zig-out/lib/libzig_id.dylib ]; then cp zig-out/lib/libzig_id.dylib dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
+          if [ -f zig-out/bin/zig_id.dll ]; then cp zig-out/bin/zig_id.dll dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
+          ls -la dist/bin/${ARCH}-${PLATFORM}/
       - name: JS tests
         run: npm test
       - name: Upload prebuild
@@ -67,7 +70,10 @@ jobs:
         run: |
           zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall -Dnapi-include=node_modules/node-api-headers/include
           mkdir -p dist/bin/${{ matrix.platform }}
-          cp zig-out/lib/libzig_id.* dist/bin/${{ matrix.platform }}/zig-id.node
+          if [ -f zig-out/lib/libzig_id.so ]; then cp zig-out/lib/libzig_id.so dist/bin/${{ matrix.platform }}/zig-id.node; fi
+          if [ -f zig-out/lib/libzig_id.dylib ]; then cp zig-out/lib/libzig_id.dylib dist/bin/${{ matrix.platform }}/zig-id.node; fi
+          if [ -f zig-out/bin/zig_id.dll ]; then cp zig-out/bin/zig_id.dll dist/bin/${{ matrix.platform }}/zig-id.node; fi
+          ls -la dist/bin/${{ matrix.platform }}/
       - name: Upload prebuild
         uses: actions/upload-artifact@v4
         with:
