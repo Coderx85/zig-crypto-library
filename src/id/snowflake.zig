@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const SpinLock = std.atomic.Mutex;
 
@@ -73,9 +74,19 @@ fn deriveNodeId() u10 {
 }
 
 fn timestampMs() u64 {
-    var ts: std.os.linux.timespec = undefined;
-    _ = std.os.linux.clock_gettime(std.os.linux.CLOCK.REALTIME, &ts);
-    return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1000000;
+    return switch (builtin.os.tag) {
+        .linux => {
+            var ts: std.os.linux.timespec = undefined;
+            _ = std.os.linux.clock_gettime(std.os.linux.CLOCK.REALTIME, &ts);
+            return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1000000;
+        },
+        .macos, .ios => {
+            var ts: std.c.timespec = undefined;
+            _ = std.c.clock_gettime(std.c.CLOCK_REALTIME, &ts);
+            return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1000000;
+        },
+        else => @compileError("unsupported OS"),
+    };
 }
 
 fn waitNextMs(last_timestamp: u64) u64 {
