@@ -6,6 +6,21 @@ pub fn build(b: *std.Build) void {
 
     const napi_include = b.option([]const u8, "napi-include", "Path to node-api-headers include directory");
 
+    const rand_mod = b.addModule("rand", .{
+        .root_source_file = b.path("src/crypto/rand.zig"),
+        .target = target,
+    });
+
+    const blake2b_mod = b.addModule("blake2b", .{
+        .root_source_file = b.path("src/crypto/blake2b.zig"),
+        .target = target,
+    });
+
+    const xchacha20_mod = b.addModule("xchacha20", .{
+        .root_source_file = b.path("src/token/xchacha20.zig"),
+        .target = target,
+    });
+
     const napi_lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "zig_id",
@@ -15,15 +30,15 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    napi_lib.root_module.addImport("rand", rand_mod);
+    napi_lib.root_module.addImport("blake2b", blake2b_mod);
+    napi_lib.root_module.addImport("xchacha20", xchacha20_mod);
+    napi_lib.linker_allow_shlib_undefined = true;
     if (napi_include) |path| {
         napi_lib.root_module.addIncludePath(.{ .cwd_relative = path });
     }
     b.installArtifact(napi_lib);
 
-    const rand_mod = b.addModule("rand", .{
-        .root_source_file = b.path("src/crypto/rand.zig"),
-        .target = target,
-    });
     const rand_tests = b.addTest(.{ .root_module = rand_mod });
     const run_rand_tests = b.addRunArtifact(rand_tests);
 
@@ -49,17 +64,9 @@ pub fn build(b: *std.Build) void {
     const hex_tests = b.addTest(.{ .root_module = hex_mod });
     const run_hex_tests = b.addRunArtifact(hex_tests);
 
-    const xchacha20_mod = b.addModule("xchacha20", .{
-        .root_source_file = b.path("src/token/xchacha20.zig"),
-        .target = target,
-    });
     const xchacha20_tests = b.addTest(.{ .root_module = xchacha20_mod });
     const run_xchacha20_tests = b.addRunArtifact(xchacha20_tests);
 
-    const blake2b_mod = b.addModule("blake2b", .{
-        .root_source_file = b.path("src/crypto/blake2b.zig"),
-        .target = target,
-    });
     const blake2b_tests = b.addTest(.{ .root_module = blake2b_mod });
     const run_blake2b_tests = b.addRunArtifact(blake2b_tests);
 

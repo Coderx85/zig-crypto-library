@@ -1,6 +1,6 @@
 const std = @import("std");
 const tables = @import("tables.zig");
-const c = @import("../c.zig");
+const c = @import("../c.zig").c;
 
 pub const Error = error{
     InvalidLength,
@@ -39,7 +39,7 @@ export fn nativeEncode(env: c.napi_env, info: c.napi_callback_info) callconv(.c)
         _ = encode(input_bytes, output_bytes, .standard) catch return null;
 
         var js_output: c.napi_value = undefined;
-        _ = c.napi_create_string_utf8(env, &stack_output, encoded_len, &js_output) catch return null;
+        _ = c.napi_create_string_utf8(env, @ptrCast(&stack_output), encoded_len, &js_output);
 
         return js_output;
     } else {
@@ -49,7 +49,7 @@ export fn nativeEncode(env: c.napi_env, info: c.napi_callback_info) callconv(.c)
         defer allocator.free(input_buf);
 
         var copied_bytes: usize = 0;
-        _ = c.napi_get_value_string_utf8(env, js_input, input_buf, input_len + 1, &copied_bytes);
+        _ = c.napi_get_value_string_utf8(env, js_input, @ptrCast(input_buf), input_len + 1, &copied_bytes);
 
         const input_bytes = input_buf[0..copied_bytes];
 
@@ -59,7 +59,7 @@ export fn nativeEncode(env: c.napi_env, info: c.napi_callback_info) callconv(.c)
         _ = encode(input_bytes, output_buf, .standard) catch return null;
 
         var js_output: c.napi_value = undefined;
-        _ = c.napi_create_string_utf8(env, output_buf, encoded_len, &js_output) catch return null;
+        _ = c.napi_create_string_utf8(env, @ptrCast(output_buf.ptr), encoded_len, &js_output);
 
         return js_output;
     }
@@ -101,10 +101,10 @@ pub fn encode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
     var j: usize = 0;
 
     while (i + 12 <= input.len) {
-        const t0: u32 = (input[i] << 16) | (input[i + 1] << 8) | input[i + 2];
-        const t1: u32 = (input[i + 3] << 16) | (input[i + 4] << 8) | input[i + 5];
-        const t2: u32 = (input[i + 6] << 16) | (input[i + 7] << 8) | input[i + 8];
-        const t3: u32 = (input[i + 9] << 16) | (input[i + 10] << 8) | input[i + 11];
+        const t0: u32 = (@as(u32, input[i]) << 16) | (@as(u32, input[i + 1]) << 8) | input[i + 2];
+        const t1: u32 = (@as(u32, input[i + 3]) << 16) | (@as(u32, input[i + 4]) << 8) | input[i + 5];
+        const t2: u32 = (@as(u32, input[i + 6]) << 16) | (@as(u32, input[i + 7]) << 8) | input[i + 8];
+        const t3: u32 = (@as(u32, input[i + 9]) << 16) | (@as(u32, input[i + 10]) << 8) | input[i + 11];
 
         inline for (0..4) |off| {
             const t =
@@ -132,11 +132,12 @@ pub fn encode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
     if (rem >= 3) {
         const a: u32 = input[i];
         const b: u32 = input[i + 1];
+        const cc: u32 = input[i + 2];
 
         output[j + 0] = enc_table[@as(u6, @truncate(a >> 2))];
         output[j + 1] = enc_table[@as(u6, @truncate(((a & 0x3) << 4) | (b >> 4)))];
-        output[j + 2] = enc_table[@as(u6, @truncate(((b & 0xF) << 2) | (c >> 6)))];
-        output[j + 3] = enc_table[@as(u6, @truncate(c & 0x3F))];
+        output[j + 2] = enc_table[@as(u6, @truncate(((b & 0xF) << 2) | (cc >> 6)))];
+        output[j + 3] = enc_table[@as(u6, @truncate(cc & 0x3F))];
         i += 3;
         j += 4;
     }
@@ -144,11 +145,12 @@ pub fn encode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
     if (rem >= 6) {
         const a: u32 = input[i];
         const b: u32 = input[i + 1];
+        const cc: u32 = input[i + 2];
 
         output[j + 0] = enc_table[@as(u6, @truncate(a >> 2))];
         output[j + 1] = enc_table[@as(u6, @truncate(((a & 0x3) << 4) | (b >> 4)))];
-        output[j + 2] = enc_table[@as(u6, @truncate(((b & 0xF) << 2) | (c >> 6)))];
-        output[j + 3] = enc_table[@as(u6, @truncate(c & 0x3F))];
+        output[j + 2] = enc_table[@as(u6, @truncate(((b & 0xF) << 2) | (cc >> 6)))];
+        output[j + 3] = enc_table[@as(u6, @truncate(cc & 0x3F))];
         i += 3;
         j += 4;
     }
@@ -156,11 +158,12 @@ pub fn encode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
     if (rem >= 9) {
         const a: u32 = input[i];
         const b: u32 = input[i + 1];
+        const cc: u32 = input[i + 2];
 
         output[j + 0] = enc_table[@as(u6, @truncate(a >> 2))];
         output[j + 1] = enc_table[@as(u6, @truncate(((a & 0x3) << 4) | (b >> 4)))];
-        output[j + 2] = enc_table[@as(u6, @truncate(((b & 0xF) << 2) | (c >> 6)))];
-        output[j + 3] = enc_table[@as(u6, @truncate(c & 0x3F))];
+        output[j + 2] = enc_table[@as(u6, @truncate(((b & 0xF) << 2) | (cc >> 6)))];
+        output[j + 3] = enc_table[@as(u6, @truncate(cc & 0x3F))];
     }
 
     const final_rem = input.len - i;
@@ -388,11 +391,12 @@ fn simdPack12(v: @Vector(16, u8), output: []u8) void {
         const lane = lanes[g];
         const a = @as(u8, @truncate(lane));
         const b = @as(u8, @truncate(lane >> 8));
+        const cc = @as(u8, @truncate(lane >> 16));
         const d = @as(u8, @truncate(lane >> 24));
 
         output[g * 3 + 0] = (a << 2) | (b >> 4);
-        output[g * 3 + 1] = ((b & 0x0F) << 4) | (c >> 2);
-        output[g * 3 + 2] = ((c & 0x03) << 6) | d;
+        output[g * 3 + 1] = ((b & 0x0F) << 4) | (cc >> 2);
+        output[g * 3 + 2] = ((cc & 0x03) << 6) | d;
     }
 }
 

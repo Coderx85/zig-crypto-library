@@ -82,7 +82,7 @@ fn timestampMs() u64 {
         },
         .macos, .ios => {
             var ts: std.c.timespec = undefined;
-            _ = std.c.clock_gettime(std.c.CLOCK_REALTIME, &ts);
+            _ = std.c.clock_gettime(@enumFromInt(0), &ts);
             return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1000000;
         },
         else => @compileError("unsupported OS"),

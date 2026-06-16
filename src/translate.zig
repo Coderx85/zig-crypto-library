@@ -178,7 +178,8 @@ pub fn getOptionalString(env: c.napi_env, obj: c.napi_value, comptime name: [:0]
     var val_type: c.napi_valuetype = undefined;
     if (c.napi_typeof(env, val, &val_type) != c.napi_ok) return null;
     if (val_type == c.napi_undefined or val_type == c.napi_null) return null;
-    return getString(env, val, allocator);
+    const s = try getString(env, val, allocator);
+    return @as(?[]const u8, s);
 }
 
 pub fn getOptionalUint64(env: c.napi_env, obj: c.napi_value, comptime name: [:0]const u8) !?u64 {

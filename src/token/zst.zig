@@ -310,7 +310,7 @@ fn xchacha20Decrypt(allocator: std.mem.Allocator, ciphertext: []const u8, key: *
     return plaintext;
 }
 
-fn freeClaims(allocator: std.mem.Allocator, claims: Claims) void {
+pub fn freeClaims(allocator: std.mem.Allocator, claims: Claims) void {
     if (claims.sub) |sub| allocator.free(sub);
     if (claims.aud) |aud| allocator.free(aud);
     if (claims.jti) |jti| allocator.free(jti);
