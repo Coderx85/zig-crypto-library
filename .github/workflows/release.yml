@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           ARCH=${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}
-          PLATFORM=${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'macos' || 'windows' }}
+          PLATFORM=${{ runner.os == 'Linux' && 'linux-gnu' || runner.os == 'macOS' && 'macos' || 'windows' }}
           mkdir -p dist/bin/${ARCH}-${PLATFORM}
           cp zig-out/lib/libzig_id.* dist/bin/${ARCH}-${PLATFORM}/zig-id.node 2>/dev/null || cp zig-out/bin/zig_id.dll dist/bin/${ARCH}-${PLATFORM}/zig-id.node 2>/dev/null || true
       - name: JS tests
@@ -43,7 +43,7 @@ jobs:
       - name: Upload prebuild
         uses: actions/upload-artifact@v4
         with:
-          name: bin-${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}-${{ runner.os == 'Linux' && 'linux' || runner.os == 'macOS' && 'macos' || 'windows' }}
+          name: bin-${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}-${{ runner.os == 'Linux' && 'linux-gnu' || runner.os == 'macOS' && 'macos' || 'windows' }}
           path: dist/bin/
           if-no-files-found: error
 
