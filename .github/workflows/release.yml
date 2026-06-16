@@ -42,8 +42,10 @@ jobs:
           if [ -f zig-out/lib/libzig_id.dylib ]; then cp zig-out/lib/libzig_id.dylib dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
           if [ -f zig-out/bin/zig_id.dll ]; then cp zig-out/bin/zig_id.dll dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
           ls -la dist/bin/${ARCH}-${PLATFORM}/
+      - name: Compile TypeScript
+        run: npx tsc
       - name: JS tests
-        run: npm test
+        run: node dist/test/test.js
       - name: Upload prebuild
         uses: actions/upload-artifact@v4
         with:

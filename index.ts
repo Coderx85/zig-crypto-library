@@ -88,15 +88,19 @@ const load: NativeBindings = (() => {
     require("path").resolve(__dirname, "..", "prebuilds", name),
   ];
 
+  const errors: string[] = [];
   for (const candidate of candidates) {
     try {
       return require(candidate);
-    } catch {}
+    } catch (err: any) {
+      errors.push(`  ${candidate}: ${err.message || err}`);
+    }
   }
 
   throw new Error(
     `No prebuilt binary found for ${name}. Searched:\n` +
-      candidates.map((c) => `  - ${c}`).join("\n")
+      candidates.map((c) => `  - ${c}`).join("\n") +
+      `\nErrors:\n${errors.join("\n")}`
   );
 })();
 
