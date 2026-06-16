@@ -46,8 +46,8 @@ interface NativeBindings {
       ignoreExpiration?: boolean;
       ignoreNotBefore?: boolean;
     }
-  ): string;
-  zstDecode(token: string): string;
+  ): Record<string, unknown>;
+  zstDecode(token: string): Record<string, unknown>;
   zstGenerateKey(length?: number): Buffer;
 }
 
@@ -337,16 +337,10 @@ export const zst: ZstModule = {
       : typeof secret === "string"
         ? Buffer.from(secret)
         : Buffer.from(secret);
-    const result = load.zstVerify(token, keyBuf, options);
-    try {
-      return JSON.parse(result) as ZstPayload;
-    } catch {
-      throwZstError(result);
-    }
+    return load.zstVerify(token, keyBuf, options) as unknown as ZstPayload;
   },
   decode(token, options?) {
-    const result = load.zstDecode(token);
-    return JSON.parse(result) as ZstDecodedHeader;
+    return load.zstDecode(token) as unknown as ZstDecodedHeader;
   },
   generateKey(length?: number): Buffer {
     return load.zstGenerateKey(length);

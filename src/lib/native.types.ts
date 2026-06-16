@@ -46,7 +46,7 @@ export interface NativeBindings {
       ignoreExpiration?: boolean;
       ignoreNotBefore?: boolean;
     }
-  ): string;
-  zstDecode(token: string): string;
+  ): Record<string, unknown>;
+  zstDecode(token: string): Record<string, unknown>;
   zstGenerateKey(length?: number): Buffer;
 }

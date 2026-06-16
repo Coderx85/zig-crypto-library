@@ -80,6 +80,12 @@ const JsonWriter = struct {
         self.pos += str.len;
     }
 
+    fn writeJsonValue(self: *JsonWriter, value: std.json.Value) !void {
+        var w = std.Io.Writer.fixed(self.buf[self.pos..]);
+        try std.json.fmt(value, .{}).format(&w);
+        self.pos += w.buffered().len;
+    }
+
     fn written(self: *const JsonWriter) []const u8 {
         return self.buf[0..self.pos];
     }
@@ -140,6 +146,8 @@ pub fn serializeClaimsJson(buf: []u8, claims: Claims) ![]const u8 {
     return writer.written();
 }
 
+const known_fields = [_][]const u8{ "sub", "aud", "exp", "iat", "jti", "rev", "iss", "nbf" };
+
 pub fn parseClaimsJson(allocator: std.mem.Allocator, json_str: []const u8) !Claims {
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_str, .{});
     defer parsed.deinit();
@@ -170,6 +178,31 @@ pub fn parseClaimsJson(allocator: std.mem.Allocator, json_str: []const u8) !Clai
     }
     if (obj.get("nbf")) |nbf| {
         if (nbf == .integer) claims.nbf = @intCast(nbf.integer);
+    }
+
+    // Collect custom fields not in the known set
+    var custom_buf: [Claims.MAX_CLAIMS_JSON_LEN]u8 = undefined;
+    var custom_writer = JsonWriter.init(&custom_buf);
+    var first_custom = true;
+
+    var it = obj.iterator();
+    while (it.next()) |entry| {
+        var is_known = false;
+        for (known_fields) |kf| {
+            if (std.mem.eql(u8, entry.key_ptr.*, kf)) {
+                is_known = true;
+                break;
+            }
+        }
+        if (!is_known) {
+            if (!first_custom) try custom_writer.writeByte(',');
+            try custom_writer.print("\"{s}\":", .{entry.key_ptr.*});
+            try custom_writer.writeJsonValue(entry.value_ptr.*);
+            first_custom = false;
+        }
+    }
+    if (custom_writer.pos > 0) {
+        claims.custom = try allocator.dupe(u8, custom_writer.written());
     }
 
     return claims;

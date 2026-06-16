@@ -49,6 +49,16 @@ pub const VerifyResult = struct {
     header: DecodedHeader,
 };
 
+fn hasAnyOptions(options: SignOptions) bool {
+    return options.expires_in != null or
+        options.not_before != null or
+        options.audience != null or
+        options.issuer != null or
+        options.subject != null or
+        options.jwtid != null or
+        options.rev != null;
+}
+
 pub fn generateKey(allocator: std.mem.Allocator, length: usize) ![]u8 {
     if (length < MIN_KEY_LEN) return error.KeyTooShort;
     const buf = try allocator.alloc(u8, length);
@@ -59,18 +69,23 @@ pub fn generateKey(allocator: std.mem.Allocator, length: usize) ![]u8 {
 pub fn sign(allocator: std.mem.Allocator, payload: []const u8, key: []const u8, options: SignOptions) ZstError![]u8 {
     if (key.len < MIN_KEY_LEN) return error.KeyTooShort;
 
-    const claims = claims_mod.parseClaimsJson(allocator, payload) catch return error.InvalidPayload;
-    defer freeClaims(allocator, claims);
-
-    var final_claims = claims;
-    if (options.audience) |aud| final_claims.aud = aud;
-    if (options.issuer) |iss| final_claims.iss = iss;
-    if (options.subject) |sub| final_claims.sub = sub;
-    if (options.jwtid) |jti| final_claims.jti = jti;
-    if (options.rev) |rev| final_claims.rev = rev;
-
+    // Fast path: when no options set, use raw payload directly (no parse/reserialize)
     var claims_buf: [Claims.MAX_CLAIMS_JSON_LEN]u8 = undefined;
-    const claims_json = claims_mod.serializeClaimsJson(&claims_buf, final_claims) catch return error.InvalidPayload;
+    const claims_json = if (!hasAnyOptions(options))
+        payload
+    else blk: {
+        const claims = claims_mod.parseClaimsJson(allocator, payload) catch return error.InvalidPayload;
+        defer freeClaims(allocator, claims);
+
+        var final_claims = claims;
+        if (options.audience) |aud| final_claims.aud = aud;
+        if (options.issuer) |iss| final_claims.iss = iss;
+        if (options.subject) |sub| final_claims.sub = sub;
+        if (options.jwtid) |jti| final_claims.jti = jti;
+        if (options.rev) |rev| final_claims.rev = rev;
+
+        break :blk claims_mod.serializeClaimsJson(&claims_buf, final_claims) catch return error.InvalidPayload;
+    };
 
     var enc_key: [32]u8 = undefined;
     blake2b.deriveKey(key, "zst-v1-local-encryption", &enc_key);
@@ -315,6 +330,7 @@ pub fn freeClaims(allocator: std.mem.Allocator, claims: Claims) void {
     if (claims.aud) |aud| allocator.free(aud);
     if (claims.jti) |jti| allocator.free(jti);
     if (claims.iss) |iss| allocator.free(iss);
+    if (claims.custom) |custom| allocator.free(custom);
 }
 
 test "constants have correct values" {

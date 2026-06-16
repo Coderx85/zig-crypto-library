@@ -776,20 +776,21 @@ fn Zst_Sign(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_val
         return null;
     }
 
-    const payload_str = t.getString(env, argv[0], batch_allocator) catch return null;
-    defer batch_allocator.free(payload_str);
+    var arena = std.heap.ArenaAllocator.init(batch_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const payload_str = t.getString(env, argv[0], allocator) catch return null;
 
     const key_bytes = t.getBuffer(env, argv[1]) catch {
-        const key_str = t.getString(env, argv[1], batch_allocator) catch {
+        const key_str = t.getString(env, argv[1], allocator) catch {
             t.throw(env, "key must be a Buffer or string") catch {};
             return null;
         };
-        defer batch_allocator.free(key_str);
-        const token = zst.sign(batch_allocator, payload_str, key_str, .{}) catch |err| {
+        const token = zst.sign(allocator, payload_str, key_str, .{}) catch |err| {
             t.throw(env, @typeName(@TypeOf(err))) catch {};
             return null;
         };
-        defer batch_allocator.free(token);
         return t.createString(env, token) catch return null;
     };
 
@@ -799,27 +800,20 @@ fn Zst_Sign(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_val
         if (c.napi_typeof(env, argv[2], &arg_type) == c.napi_ok) {
             if (arg_type == c.napi_object) {
                 options = .{
-                    .audience = t.getOptionalString(env, argv[2], "audience", batch_allocator) catch null,
-                    .issuer = t.getOptionalString(env, argv[2], "issuer", batch_allocator) catch null,
-                    .subject = t.getOptionalString(env, argv[2], "subject", batch_allocator) catch null,
-                    .jwtid = t.getOptionalString(env, argv[2], "jwtid", batch_allocator) catch null,
+                    .audience = t.getOptionalString(env, argv[2], "audience", allocator) catch null,
+                    .issuer = t.getOptionalString(env, argv[2], "issuer", allocator) catch null,
+                    .subject = t.getOptionalString(env, argv[2], "subject", allocator) catch null,
+                    .jwtid = t.getOptionalString(env, argv[2], "jwtid", allocator) catch null,
                     .rev = t.getOptionalUint64(env, argv[2], "rev") catch null,
                 };
             }
         }
     }
-    defer {
-        if (options.audience) |aud| batch_allocator.free(aud);
-        if (options.issuer) |iss| batch_allocator.free(iss);
-        if (options.subject) |sub| batch_allocator.free(sub);
-        if (options.jwtid) |jti| batch_allocator.free(jti);
-    }
 
-    const token = zst.sign(batch_allocator, payload_str, key_bytes, options) catch |err| {
+    const token = zst.sign(allocator, payload_str, key_bytes, options) catch |err| {
         t.throw(env, @typeName(@TypeOf(err))) catch {};
         return null;
     };
-    defer batch_allocator.free(token);
 
     return t.createString(env, token) catch return null;
 }
@@ -834,16 +828,18 @@ fn Zst_Verify(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
         return null;
     }
 
-    const token_str = t.getString(env, argv[0], batch_allocator) catch return null;
-    defer batch_allocator.free(token_str);
+    var arena = std.heap.ArenaAllocator.init(batch_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const token_str = t.getString(env, argv[0], allocator) catch return null;
 
     const key_bytes = t.getBuffer(env, argv[1]) catch {
-        const key_str = t.getString(env, argv[1], batch_allocator) catch {
+        const key_str = t.getString(env, argv[1], allocator) catch {
             t.throw(env, "key must be a Buffer or string") catch {};
             return null;
         };
-        defer batch_allocator.free(key_str);
-        _ = zst.verify(batch_allocator, token_str, key_str, .{}) catch |err| {
+        _ = zst.verify(allocator, token_str, key_str, .{}) catch |err| {
             t.throw(env, @typeName(@TypeOf(err))) catch {};
             return null;
         };
@@ -856,10 +852,10 @@ fn Zst_Verify(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
         if (c.napi_typeof(env, argv[2], &arg_type) == c.napi_ok) {
             if (arg_type == c.napi_object) {
                 options = .{
-                    .audience = t.getOptionalString(env, argv[2], "audience", batch_allocator) catch null,
-                    .issuer = t.getOptionalString(env, argv[2], "issuer", batch_allocator) catch null,
-                    .subject = t.getOptionalString(env, argv[2], "subject", batch_allocator) catch null,
-                    .jwtid = t.getOptionalString(env, argv[2], "jwtid", batch_allocator) catch null,
+                    .audience = t.getOptionalString(env, argv[2], "audience", allocator) catch null,
+                    .issuer = t.getOptionalString(env, argv[2], "issuer", allocator) catch null,
+                    .subject = t.getOptionalString(env, argv[2], "subject", allocator) catch null,
+                    .jwtid = t.getOptionalString(env, argv[2], "jwtid", allocator) catch null,
                     .current_rev = t.getOptionalUint64(env, argv[2], "currentRev") catch 0 orelse 0,
                     .clock_tolerance = t.getOptionalUint64(env, argv[2], "clockTolerance") catch 0 orelse 0,
                     .ignore_expiration = getOptionalBool(env, argv[2], "ignoreExpiration") catch false,
@@ -868,18 +864,11 @@ fn Zst_Verify(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
             }
         }
     }
-    defer {
-        if (options.audience) |aud| batch_allocator.free(aud);
-        if (options.issuer) |iss| batch_allocator.free(iss);
-        if (options.subject) |sub| batch_allocator.free(sub);
-        if (options.jwtid) |jti| batch_allocator.free(jti);
-    }
 
-    const result = zst.verify(batch_allocator, token_str, key_bytes, options) catch |err| {
+    const result = zst.verify(allocator, token_str, key_bytes, options) catch |err| {
         t.throw(env, @typeName(@TypeOf(err))) catch {};
         return null;
     };
-    defer zst.freeClaims(batch_allocator, result.payload);
 
     var obj: c.napi_value = undefined;
     if (c.napi_create_object(env, &obj) != c.napi_ok) return null;
@@ -924,6 +913,11 @@ fn Zst_Verify(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
         _ = c.napi_create_string_utf8(env, jti.ptr, jti.len, &val);
         _ = c.napi_set_named_property(env, obj, "jti", val);
     }
+    if (result.payload.custom) |custom| {
+        var val: c.napi_value = undefined;
+        _ = c.napi_create_string_utf8(env, custom.ptr, custom.len, &val);
+        _ = c.napi_set_named_property(env, obj, "custom", val);
+    }
 
     return obj;
 }
@@ -938,8 +932,11 @@ fn Zst_Decode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
         return null;
     }
 
-    const token_str = t.getString(env, argv[0], batch_allocator) catch return null;
-    defer batch_allocator.free(token_str);
+    var arena = std.heap.ArenaAllocator.init(batch_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const token_str = t.getString(env, argv[0], allocator) catch return null;
 
     const header = zst.decode(token_str) catch |err| {
         t.throw(env, @typeName(@TypeOf(err))) catch {};
@@ -989,11 +986,14 @@ fn Zst_GenerateKey(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.n
         return null;
     }
 
-    const key = zst.generateKey(batch_allocator, length) catch {
+    var arena = std.heap.ArenaAllocator.init(batch_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const key = zst.generateKey(allocator, length) catch {
         t.throw(env, "Failed to generate key") catch {};
         return null;
     };
-    defer batch_allocator.free(key);
 
     return t.createArrayBuffer(env, key) catch return null;
 }
