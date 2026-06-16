@@ -24,7 +24,6 @@
     "types/**/*.ts",
     "test/**/*.ts",
     "examples/**/*.ts",
-    "node-gyp-build.d.ts",
     "scripts/**/*.ts",
     "scripts/bump-version.js",
     "src/lib/index.ts",

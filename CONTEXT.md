@@ -58,7 +58,7 @@ TigerBeetle writes one Zig core (`tb_client`) and wraps it for every language vi
 ```
 ┌──────────────────────────────────────────┐
 │  index.ts / index.d.ts                   │  ← TypeScript API, user-facing
-│  (node-gyp-build loader)                 │
+│  (runtime arch/platform detection)       │
 ├──────────────────────────────────────────┤
 │  N-API C ABI Boundary                    │  ← Exports, type marshalling
 │  src/napi.zig  (5 exports)               │
@@ -197,11 +197,11 @@ JS: receives 1577836800000000001n (BigInt)
 - **Rationale:** Original `nanoid.Batch()` created an external Buffer via `nanoidBatchBuffer` then called `buf.toString()` N times in JS. This was 12× slower than pure-JS nanoid in Bun because `Buffer.toString()` in JavaScriptCore has high JS-level UTF-8 decoder overhead. Replaced with a single native function that creates JS strings directly via `napi_create_string_utf8` and returns a JS array. One boundary crossing, zero Buffer.toString() calls.
 - **Consequence:** Batch strings are created in C with `napi_create_string_utf8` (V8/JS engine primitives) instead of JS UTF-8 decoding. The `Buffer` path (`nanoidBatchBuffer`) is retained for zero-copy use cases but is no longer the default Batch path.
 
-### Decision: `node-gyp-build` over `prebuildify` CLI
+### Decision: Runtime Detection over `node-gyp-build`
 
 - **Status:** Accepted
-- **Rationale:** `node-gyp-build` is a 20-line runtime loader with zero configuration. `prebuildify` is a build-time tool that requires careful integration. We use `prebuildify` in CI to generate binaries, but `node-gyp-build` at runtime to load them.
-- **Consequence:** `package.json` has a runtime dependency on `node-gyp-build` (~5KB).
+- **Rationale:** Inspired by TigerBeetle's approach. Custom IIFE loader in `index.ts` detects `process.arch`, `process.platform`, and Linux ABI (glibc/musl) at runtime. Zero runtime dependencies. Binaries shipped in `dist/bin/{arch}-{platform}/`.
+- **Consequence:** No `node-gyp-build` dependency. Loader is ~30 lines of TypeScript. Supports glibc/musl detection for Linux.
 
 ---
 
@@ -214,7 +214,7 @@ JS: receives 1577836800000000001n (BigInt)
 | `src/napi.zig`                  | N-API layer: 5 exports (Id, Batch, nanoid, nanoidBatchBuffer, nanoidBatchStrings) | Stable    |
 | `src/nanoid.zig`                | Core nanoid: CSPRNG, alphabet mapping, batch                                      | Stable    |
 | `src/snowflake.zig`             | Core Snowflake: bit packing, timestamp, mutex                                     | Stable    |
-| `index.js`                      | JS loader: `node-gyp-build` + re-exports                                          | Stable    |
+| `index.ts`                      | JS loader: runtime arch/platform detection + re-exports                           | Stable    |
 | `index.d.ts`                    | TypeScript declarations                                                           | Stable    |
 | `package.json`                  | npm manifest, `files` whitelist, dependencies                                     | Stable    |
 | `.github/workflows/release.yml` | Matrix CI: 5 targets + publish                                                    | Stable    |
@@ -237,10 +237,12 @@ zig build -Dnapi-include=node_modules/node-api-headers/include
 # Build for current machine (release, stripped)
 zig build -Doptimize=ReleaseSmall -Dnapi-include=node_modules/node-api-headers/include
 
-# Copy binary to prebuilds/ for local testing
-mkdir -p prebuilds/$(node -e "console.log(process.platform+'-'+process.arch)")
-cp zig-out/lib/libzig_id.* prebuilds/*/zig-id.node  # Unix
-cp zig-out/bin/zig_id.dll prebuilds/*/zig-id.node    # Windows
+# Copy binary to dist/bin/ for local testing
+ARCH=$(uname -m | sed 's/x86_64/x86_64/' | sed 's/aarch64/aarch64/')
+PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+mkdir -p dist/bin/${ARCH}-${PLATFORM}
+cp zig-out/lib/libzig_id.* dist/bin/${ARCH}-${PLATFORM}/zig-id.node  # Unix
+cp zig-out/bin/zig_id.dll dist/bin/x86_64-windows/zig-id.node        # Windows
 
 # Test
 npm test
@@ -261,16 +263,16 @@ npm test
 Each binary is renamed to `zig-id.node` and placed in:
 
 ```
-prebuilds/
-├── linux-x64/
+dist/bin/
+├── x86_64-linux-gnu/
 │   └── zig-id.node
-├── linux-arm64/
+├── aarch64-linux-gnu/
 │   └── zig-id.node
-├── darwin-x64/
+├── x86_64-macos/
 │   └── zig-id.node
-├── darwin-arm64/
+├── aarch64-macos/
 │   └── zig-id.node
-└── win32-x64/
+└── x86_64-windows/
     └── zig-id.node
 ```
 
@@ -336,7 +338,7 @@ prebuilds/
 - [x] N-API module registration
 - [x] Cross-compilation CI (5 targets)
 - [x] TypeScript definitions
-- [x] npm publish with prebuilds
+- [x] npm publish with prebuilt binaries in `dist/bin/`
 
 ### v1.1.0 (Batch Generation — Phase 3)
 

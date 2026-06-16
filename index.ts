@@ -1,6 +1,3 @@
-import gypBuild from "node-gyp-build";
-import { resolve } from "node:path";
-
 // ── Native module loader ──────────────────────────────
 
 interface NativeBindings {
@@ -56,7 +53,56 @@ interface NativeBindings {
   zstGenerateKey(length?: number): Buffer;
 }
 
-const load: NativeBindings = gypBuild(resolve(__dirname, ".."));
+const load: NativeBindings = (() => {
+  const { arch, platform } = process;
+
+  const archMap: Record<string, string> = {
+    arm64: "aarch64",
+    x64: "x86_64",
+  };
+
+  const platformMap: Record<string, string> = {
+    linux: "linux",
+    darwin: "macos",
+    win32: "windows",
+  };
+
+  if (!(arch in archMap)) {
+    throw new Error(`Unsupported architecture: ${arch}`);
+  }
+  if (!(platform in platformMap)) {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  let linuxABI = "";
+  if (platform === "linux") {
+    const report = process.report.getReport() as any;
+    const glibcVersionRuntime = report.header?.glibcVersionRuntime;
+    linuxABI = glibcVersionRuntime ? "-gnu" : "-musl";
+  }
+
+  const zigArch = archMap[arch];
+  const zigPlatform = platformMap[platform];
+  const name = `${zigArch}-${zigPlatform}${linuxABI}/zig-id.node`;
+
+  // npm package: dist/bin/{arch}-{platform}/zig-id.node
+  // local dev:   prebuilds/{arch}-{platform}/zig-id.node
+  const candidates = [
+    require("path").resolve(__dirname, "bin", name),
+    require("path").resolve(__dirname, "..", "prebuilds", name),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      return require(candidate);
+    } catch {}
+  }
+
+  throw new Error(
+    `No prebuilt binary found for ${name}. Searched:\n` +
+      candidates.map((c) => `  - ${c}`).join("\n")
+  );
+})();
 
 // ── Snowflake ─────────────────────────────────────────
 
@@ -142,7 +188,6 @@ export class ZstError extends Error {
 }
 
 export class ZstExpiredError extends ZstError {
-  name = "ZstExpiredError" as const;
   expiredAt: Date;
   constructor(message: string, expiredAt?: Date) {
     super(message);
@@ -151,7 +196,6 @@ export class ZstExpiredError extends ZstError {
 }
 
 export class ZstNotBeforeError extends ZstError {
-  name = "ZstNotBeforeError" as const;
   date: Date;
   constructor(message: string, date?: Date) {
     super(message);
@@ -160,23 +204,33 @@ export class ZstNotBeforeError extends ZstError {
 }
 
 export class ZstAudienceError extends ZstError {
-  name = "ZstAudienceError" as const;
+  constructor() {
+    super("Zistoken audience mismatch");
+  }
 }
 
 export class ZstIssuerError extends ZstError {
-  name = "ZstIssuerError" as const;
+  constructor() {
+    super("Zistoken issuer mismatch");
+  }
 }
 
 export class ZstSubjectError extends ZstError {
-  name = "ZstSubjectError" as const;
+  constructor() {
+    super("Zistoken subject mismatch");
+  }
 }
 
 export class ZstJwtIdError extends ZstError {
-  name = "ZstJwtIdError" as const;
+  constructor() {
+    super("Zistoken JWT ID mismatch");
+  }
 }
 
 export class ZstRevokedError extends ZstError {
-  name = "ZstRevokedError" as const;
+  constructor() {
+    super("Zistoken revoked");
+  }
 }
 
 function throwZstError(errorJson: string): never {
@@ -187,15 +241,15 @@ function throwZstError(errorJson: string): never {
     case "not_before":
       throw new ZstNotBeforeError(parsed.message);
     case "audience":
-      throw new ZstAudienceError(parsed.message);
+      throw new ZstAudienceError();
     case "issuer":
-      throw new ZstIssuerError(parsed.message);
+      throw new ZstIssuerError();
     case "subject":
-      throw new ZstSubjectError(parsed.message);
+      throw new ZstSubjectError();
     case "jwt_id":
-      throw new ZstJwtIdError(parsed.message);
+      throw new ZstJwtIdError();
     case "revoked":
-      throw new ZstRevokedError(parsed.message);
+      throw new ZstRevokedError();
     default:
       throw new ZstError(parsed.message);
   }
@@ -311,7 +365,11 @@ export const zst: ZstModule = {
 
 // ── Codec (base64) ────────────────────────────────────
 
-export const codec: { base64: Base64Module; base58: Base58Module; hex: HexModule } = {
+export const codec: {
+  base64: Base64Module;
+  base58: Base58Module;
+  hex: HexModule;
+} = {
   base64: {
     encode(data: Buffer, options?: Base64Options): string {
       return load.base64EncodeStr(data, options);

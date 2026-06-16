@@ -12,7 +12,7 @@ Prebuilt binaries for Linux (x64/ARM64), macOS (x64/ARM64), and Windows (x64). N
 npm install zig-crypto
 ```
 
-Works on Node.js 18+ across all supported platforms. No native compilation step needed — prebuilt binaries are shipped via `node-gyp-build`.
+Works on Node.js 18+ across all supported platforms. No native compilation step needed — prebuilt binaries are shipped in `dist/bin/`.
 
 ---
 
@@ -22,8 +22,8 @@ Works on Node.js 18+ across all supported platforms. No native compilation step 
 import { nanoid, Snowflake, codec } from "zig-crypto";
 
 // Nanoid — cryptographically secure random string IDs
-nanoid();          // "V1StGXR8_Z5jdHi6B-myT"
-nanoid(10);        // "IRFa-VaY2b"
+nanoid(); // "V1StGXR8_Z5jdHi6B-myT"
+nanoid(10); // "IRFa-VaY2b"
 
 // Batch — generate 1000 IDs in a single native call
 const ids = nanoid.Batch(1000, 21); // string[]
@@ -33,9 +33,9 @@ const id = Snowflake.Id(); // 1577836800000000001n (BigInt)
 const timestamp = extractSnowflakeTime(id); // Date.now()
 
 // Codec — base64, base58, hex encoding/decoding
-codec.base64.encode(Buffer.from("hello"));    // "aGVsbG8="
-codec.base58.encode(Buffer.from("hello"));    // "Cn8eVd3"
-codec.hex.encode(Buffer.from("hello"));       // "68656c6c6f"
+codec.base64.encode(Buffer.from("hello")); // "aGVsbG8="
+codec.base58.encode(Buffer.from("hello")); // "Cn8eVd3"
+codec.hex.encode(Buffer.from("hello")); // "68656c6c6f"
 ```
 
 ---
@@ -46,13 +46,13 @@ codec.hex.encode(Buffer.from("hello"));       // "68656c6c6f"
 
 Generate a cryptographically secure random string ID.
 
-| Parameter | Type     | Default | Description                    |
-| --------- | -------- | ------- | ------------------------------ |
-| `length`  | `number` | `21`    | ID length (1–128, default 21)  |
+| Parameter | Type     | Default | Description                   |
+| --------- | -------- | ------- | ----------------------------- |
+| `length`  | `number` | `21`    | ID length (1–128, default 21) |
 
 ```ts
-nanoid();    // "V1StGXR8_Z5jdHi6B-myT"
-nanoid(10);  // "IRFa-VaY2b"
+nanoid(); // "V1StGXR8_Z5jdHi6B-myT"
+nanoid(10); // "IRFa-VaY2b"
 ```
 
 Uses a 64-character URL-safe alphabet with zero modulo bias. Each byte maps to the alphabet via `byte & 0x3F` — no rejection sampling, no branching.
@@ -61,10 +61,10 @@ Uses a 64-character URL-safe alphabet with zero modulo bias. Each byte maps to t
 
 Generate multiple IDs in a single JS↔native boundary crossing.
 
-| Parameter | Type     | Default | Description                   |
-| --------- | -------- | ------- | ----------------------------- |
-| `count`   | `number` | —       | Number of IDs (1–1000)        |
-| `length`  | `number` | `21`    | ID length (1–128)             |
+| Parameter | Type     | Default | Description            |
+| --------- | -------- | ------- | ---------------------- |
+| `count`   | `number` | —       | Number of IDs (1–1000) |
+| `length`  | `number` | `21`    | ID length (1–128)      |
 
 ```ts
 const ids = nanoid.Batch(500, 21); // string[], 500 IDs in one call
@@ -117,28 +117,28 @@ Extract the 12-bit sequence counter from a Snowflake ID.
 
 ### `codec.base64`
 
-| Method                              | Description                         |
-| ----------------------------------- | ----------------------------------- |
-| `encode(data, options?)`            | Encode buffer to base64 string      |
-| `encodeBuf(data, options?)`         | Encode buffer to base64 buffer      |
-| `decode(data, options?)`            | Decode base64 string/buffer         |
-| `decodeConst(data, options?)`       | Constant-time decode (timing-safe)  |
+| Method                        | Description                        |
+| ----------------------------- | ---------------------------------- |
+| `encode(data, options?)`      | Encode buffer to base64 string     |
+| `encodeBuf(data, options?)`   | Encode buffer to base64 buffer     |
+| `decode(data, options?)`      | Decode base64 string/buffer        |
+| `decodeConst(data, options?)` | Constant-time decode (timing-safe) |
 
 Options: `{ urlSafe?: boolean }` — use URL-safe alphabet (`-` and `_` instead of `+` and `/`).
 
 ### `codec.base58`
 
-| Method            | Description              |
-| ----------------- | ------------------------ |
-| `encode(data)`    | Encode buffer to base58  |
-| `decode(string)`  | Decode base58 to buffer  |
+| Method           | Description             |
+| ---------------- | ----------------------- |
+| `encode(data)`   | Encode buffer to base58 |
+| `decode(string)` | Decode base58 to buffer |
 
 ### `codec.hex`
 
-| Method            | Description                         |
-| ----------------- | ----------------------------------- |
+| Method                   | Description                 |
+| ------------------------ | --------------------------- |
 | `encode(data, options?)` | Encode buffer to hex string |
-| `decode(string)`  | Decode hex to buffer                |
+| `decode(string)`         | Decode hex to buffer        |
 
 Options: `{ upper?: boolean }` — use uppercase hex digits.
 
@@ -146,13 +146,13 @@ Options: `{ upper?: boolean }` — use uppercase hex digits.
 
 ## Performance
 
-| Operation                    | Target   | Notes                                              |
-| ---------------------------- | -------- | -------------------------------------------------- |
-| `nanoid()` single            | < 1 µs   | Stack buffer + 64KB CSPRNG pool, zero allocation   |
-| `snowflake()` single         | < 0.5 µs | Bit ops + mutex lock                               |
-| `nanoidBatch(1000)`          | 1 crossing | Native strings, no `Buffer.toString()`           |
-| Binary size (per platform)   | < 500 KB | `ReleaseSmall` + strip                             |
-| `npm install` time           | < 3 sec  | Prebuilt, no compile                               |
+| Operation                  | Target     | Notes                                            |
+| -------------------------- | ---------- | ------------------------------------------------ |
+| `nanoid()` single          | < 1 µs     | Stack buffer + 64KB CSPRNG pool, zero allocation |
+| `snowflake()` single       | < 0.5 µs   | Bit ops + mutex lock                             |
+| `nanoidBatch(1000)`        | 1 crossing | Native strings, no `Buffer.toString()`           |
+| Binary size (per platform) | < 500 KB   | `ReleaseSmall` + strip                           |
+| `npm install` time         | < 3 sec    | Prebuilt, no compile                             |
 
 ---
 
@@ -183,13 +183,13 @@ Options: `{ upper?: boolean }` — use uppercase hex digits.
 
 ## Supported Platforms
 
-| Platform       | Architecture | Status       |
-| -------------- | ------------ | ------------ |
-| Linux          | x64          | Prebuilt     |
-| Linux          | ARM64        | Prebuilt     |
-| macOS          | x64          | Prebuilt     |
-| macOS          | ARM64        | Prebuilt     |
-| Windows        | x64          | Prebuilt     |
+| Platform | Architecture | Status   |
+| -------- | ------------ | -------- |
+| Linux    | x64          | Prebuilt |
+| Linux    | ARM64        | Prebuilt |
+| macOS    | x64          | Prebuilt |
+| macOS    | ARM64        | Prebuilt |
+| Windows  | x64          | Prebuilt |
 
 ---
 
@@ -208,7 +208,10 @@ zig build -Dnapi-include=node_modules/node-api-headers/include
 zig build -Doptimize=ReleaseSmall -Dnapi-include=node_modules/node-api-headers/include
 
 # Copy binary for local testing
-cp zig-out/lib/libzig_id.so prebuilds/linux-x64/zig-id.node
+ARCH=$(uname -m | sed 's/x86_64/x86_64/' | sed 's/aarch64/aarch64/')
+PLATFORM=$(uname -s | tr '[:upper:]' '[:lower:]')
+mkdir -p dist/bin/${ARCH}-${PLATFORM}
+cp zig-out/lib/libzig_id.so dist/bin/${ARCH}-${PLATFORM}/zig-id.node
 
 # Run tests
 npm test

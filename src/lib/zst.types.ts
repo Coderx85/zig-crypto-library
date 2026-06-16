@@ -63,7 +63,6 @@ export class ZstError extends Error {
 }
 
 export class ZstExpiredError extends ZstError {
-  name: "ZstExpiredError" = "ZstExpiredError";
   expiredAt: Date;
   constructor(message: string, expiredAt?: Date) {
     super(message);
@@ -72,7 +71,6 @@ export class ZstExpiredError extends ZstError {
 }
 
 export class ZstNotBeforeError extends ZstError {
-  name: "ZstNotBeforeError" = "ZstNotBeforeError";
   date: Date;
   constructor(message: string, date?: Date) {
     super(message);
@@ -81,23 +79,33 @@ export class ZstNotBeforeError extends ZstError {
 }
 
 export class ZstAudienceError extends ZstError {
-  name: "ZstAudienceError" = "ZstAudienceError";
+  constructor() {
+    super("Zistoken audience mismatch");
+  }
 }
 
 export class ZstIssuerError extends ZstError {
-  name: "ZstIssuerError" = "ZstIssuerError";
+  constructor() {
+    super("Zistoken issuer mismatch");
+  }
 }
 
 export class ZstSubjectError extends ZstError {
-  name: "ZstSubjectError" = "ZstSubjectError";
+  constructor() {
+    super("Zistoken subject mismatch");
+  }
 }
 
 export class ZstJwtIdError extends ZstError {
-  name: "ZstJwtIdError" = "ZstJwtIdError";
+  constructor() {
+    super("Zistoken JWT ID mismatch");
+  }
 }
 
 export class ZstRevokedError extends ZstError {
-  name: "ZstRevokedError" = "ZstRevokedError";
+  constructor() {
+    super("Zistoken revoked");
+  }
 }
 
 export interface ZstModule {
