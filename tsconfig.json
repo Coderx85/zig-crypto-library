@@ -23,7 +23,6 @@
     "index.ts",
     "types/**/*.ts",
     "test/**/*.ts",
-    "examples/**/*.ts",
     "scripts/**/*.ts",
     "scripts/bump-version.js",
     "src/lib/index.ts",
