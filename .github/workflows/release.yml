@@ -104,6 +104,6 @@ jobs:
           npm install
           npx tsc
           echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
-          npm publish --ignore-scripts
+          npm publish --ignore-scripts --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
