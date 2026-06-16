@@ -100,6 +100,9 @@ jobs:
           path: dist/bin
           merge-multiple: true
       - name: Publish
-        run: npm publish
+        run: |
+          npm install
+          npx tsc
+          npm publish --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
