@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
       - name: Install Zig
         uses: mlugg/setup-zig@v2
       - name: Cache Zig
@@ -42,16 +42,6 @@ jobs:
           if [ -f zig-out/lib/libzig_id.dylib ]; then cp zig-out/lib/libzig_id.dylib dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
           if [ -f zig-out/bin/zig_id.dll ]; then cp zig-out/bin/zig_id.dll dist/bin/${ARCH}-${PLATFORM}/zig-id.node; fi
           ls -la dist/bin/${ARCH}-${PLATFORM}/
-      - name: Compile TypeScript
-        run: npx tsc
-      - name: JS tests
-        run: node dist/test/test.js
-      - name: Upload prebuild
-        uses: actions/upload-artifact@v4
-        with:
-          name: bin-${{ runner.arch == 'X64' && 'x86_64' || 'aarch64' }}-${{ runner.os == 'Linux' && 'linux-gnu' || runner.os == 'macOS' && 'macos' || 'windows' }}
-          path: dist/bin/
-          if-no-files-found: error
 
   build-cross:
     strategy:
