@@ -27,4 +27,4 @@ dist/
 .env.development
 .env.production
 .env.local
-.env
+.envzig-out/
