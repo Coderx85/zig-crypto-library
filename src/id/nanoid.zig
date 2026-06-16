@@ -335,8 +335,6 @@ test "rejects buffer batch count 1001" {
     try std.testing.expectError(error.InvalidCount, result);
 }
 
-// ── CustomAlphabet ──────────────────────────────────
-
 test "CustomAlphabet init rejects too short" {
     const result = CustomAlphabet.init("a");
     try std.testing.expectError(error.InvalidAlphabet, result);

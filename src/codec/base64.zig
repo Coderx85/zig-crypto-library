@@ -163,7 +163,6 @@ pub fn encode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
         output[j + 3] = enc_table[@as(u6, @truncate(c & 0x3F))];
     }
 
-    // Handle 0-2 byte remainder → padding
     const final_rem = input.len - i;
     if (final_rem == 1) {
         const a: u32 = input[i];
@@ -198,7 +197,6 @@ pub fn decode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
     var j: usize = 0;
     var i: usize = 0;
 
-    // Bulk: 8 groups (32 bytes) per iteration
     const bulk8 = (groups - 1) / 8 * 8;
     while (i < bulk8 * 4) : (i += 32) {
         inline for (0..8) |g| {
@@ -219,7 +217,6 @@ pub fn decode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
         j += 24;
     }
 
-    // Remaining groups before last (no padding possible)
     while (i < (groups - 1) * 4) : (i += 4) {
         const c0: u32 = dec_table[input[i + 0]];
         const c1: u32 = dec_table[input[i + 1]];
@@ -235,7 +232,6 @@ pub fn decode(input: []const u8, output: []u8, comptime enc: Encoding) !usize {
         j += 3;
     }
 
-    // Last group — padding possible
     const off = (groups - 1) * 4;
     const c0: u32 = dec_table[input[off + 0]];
     const c1: u32 = dec_table[input[off + 1]];
@@ -463,8 +459,6 @@ pub fn decodeSimd(input: []const u8, output: []u8, comptime enc: Encoding) !usiz
     return j + 3;
 }
 
-// ── Tests ────────────────────────────────────────────
-
 test "encode standard basic" {
     const input = "Hello, World!";
     var buf: [64]u8 = undefined;
@@ -616,8 +610,6 @@ test "decodeLen calculates correct max size" {
     try std.testing.expectEqual(@as(usize, 9), decodeLen(12));
 }
 
-// ── SIMD encode tests ────────────────────────────────
-
 test "encodeSimd matches scalar for small inputs" {
     const inputs = [_][]const u8{ "a", "ab", "abc", "Hello!", "Hello, World!" };
     inline for (inputs) |input| {
@@ -661,8 +653,6 @@ test "encodeSimd handles padding correctly" {
         try std.testing.expectEqualStrings(scalar_buf[0..scalar_len], simd_buf[0..simd_len]);
     }
 }
-
-// ── Constant-time decode tests ───────────────────────
 
 test "decodeConstantTime matches decode standard" {
     const inputs = [_][]const u8{ "TQ==", "TWE=", "TWFu", "SGVsbG8=", "SGVsbG8sIFdvcmxkIQ==", "" };
@@ -783,7 +773,6 @@ test "decodeSimd rejects invalid chars same as decode" {
         const r2 = decodeSimd(b64, &buf2, .standard);
         if (r1) |_| {
             if (r2) |_| {
-                // Both succeeded (some may be valid)
             } else |_| {
                 try std.testing.expect(false);
             }
@@ -808,9 +797,7 @@ test "decodeSimd rejects output too small" {
 }
 
 test "decodeSimd handles URL-safe special chars" {
-    // Encode known binary to produce '-' and '_' chars
     var enc_buf: [64]u8 = undefined;
-    // 0xFB → bit pattern 11111011 → first base64 char is 111110 = 62 = '-' (url)
     const data = [_]u8{ 0xFB, 0xAF, 0xBE, 0xAD };
     const enc_len = try encode(&data, &enc_buf, .url_safe);
     const b64 = enc_buf[0..enc_len];
@@ -824,10 +811,9 @@ test "decodeSimd handles URL-safe special chars" {
 }
 
 test "decodeSimd handles URL-safe special chars large" {
-    // Build a payload that triggers SIMD bulk loop and contains '-' and '_'
     var raw: [48]u8 = undefined;
     for (&raw, 0..) |*b, i| {
-        b.* = @truncate((i * 157) & 0xFF); // generates varied bytes including ones that encode to '-' and '_'
+        b.* = @truncate((i * 157) & 0xFF);
     }
     var enc_buf: [128]u8 = undefined;
     const enc_len = try encode(&raw, &enc_buf, .url_safe);

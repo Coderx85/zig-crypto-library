@@ -7,7 +7,6 @@ function fmt(ns: number): string {
 }
 
 function bench(label: string, fn: () => void, iterations: number): number {
-  // warmup
   for (let i = 0; i < 100; i++) fn();
 
   const start = process.hrtime.bigint();
@@ -20,7 +19,6 @@ function bench(label: string, fn: () => void, iterations: number): number {
   return per_op;
 }
 
-// Data sizes to test
 const sizes = [16, 64, 256, 1024, 4096];
 const iterations = 10_000;
 
@@ -50,7 +48,6 @@ for (const size of sizes) {
   );
 }
 
-// Compare with Node.js built-in Buffer base64
 console.log("\n--- Native vs Buffer (1 KB) ---");
 const kb = Buffer.alloc(1024);
 for (let i = 0; i < 1024; i++) kb[i] = i & 0xff;

@@ -1,5 +1,3 @@
-// ── Native module loader ──────────────────────────────
-
 interface NativeBindings {
   Id(): bigint;
   Batch(count: number): bigint[];
@@ -85,8 +83,6 @@ const load: NativeBindings = (() => {
   const zigPlatform = platformMap[platform];
   const name = `${zigArch}-${zigPlatform}${linuxABI}/zig-id.node`;
 
-  // npm package: dist/bin/{arch}-{platform}/zig-id.node
-  // local dev:   prebuilds/{arch}-{platform}/zig-id.node
   const candidates = [
     require("path").resolve(__dirname, "bin", name),
     require("path").resolve(__dirname, "..", "prebuilds", name),
@@ -104,8 +100,6 @@ const load: NativeBindings = (() => {
   );
 })();
 
-// ── Snowflake ─────────────────────────────────────────
-
 export interface SnowflakeModule {
   Id(): bigint;
   Batch(count: number): bigint[];
@@ -115,8 +109,6 @@ export const Snowflake: SnowflakeModule = {
   Id: load.Id,
   Batch: load.Batch,
 };
-
-// ── Extract helpers (pure JS, no native code) ─────────
 
 const TIMESTAMP_SHIFT = 22n;
 const NODE_ID_SHIFT = 12n;
@@ -137,8 +129,6 @@ export function extractSnowflakeSequence(id: bigint): number {
   return Number(id & SEQUENCE_MASK);
 }
 
-// ── Nanoid ────────────────────────────────────────────
-
 export const DEFAULT_LENGTH = 21;
 export const MAX_LENGTH = 128;
 export const MAX_BATCH = 1000;
@@ -153,8 +143,6 @@ export const nanoid: NanoidFunction = Object.assign(load.nanoid, {
   Batch: load.nanoidBatchStrings,
   BatchBuffer: load.nanoidBatchBuffer,
 });
-
-// ── Codec (base64) ────────────────────────────────────
 
 export interface Base64Options {
   urlSafe?: boolean;
@@ -180,8 +168,6 @@ export interface HexModule {
   encode(data: Buffer, options?: HexOptions): string;
   decode(data: string): Buffer;
 }
-
-// ── ZST ────────────────────────────────────────────────
 
 export class ZstError extends Error {
   name = "ZstError" as const;
@@ -362,8 +348,6 @@ export const zst: ZstModule = {
     return load.zstGenerateKey(length);
   },
 };
-
-// ── Codec (base64) ────────────────────────────────────
 
 export const codec: {
   base64: Base64Module;

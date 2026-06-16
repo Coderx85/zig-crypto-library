@@ -157,8 +157,6 @@ pub fn decode(input: []const u8, output: []u8) !usize {
     return totalLen;
 }
 
-// ── Tests ──
-
 test "encode empty" {
     var buf: [4]u8 = undefined;
     const n = try encode("", &buf);

@@ -766,10 +766,6 @@ fn Hex_Decode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
     return result;
 }
 
-// ────────────────────────────────────────────────────────
-//  ZST (Zig Secure Token) N-API exports
-// ────────────────────────────────────────────────────────
-
 fn Zst_Sign(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_value {
     var argc: usize = 3;
     var argv: [3]c.napi_value = undefined;

@@ -59,11 +59,9 @@ pub fn generateKey(allocator: std.mem.Allocator, length: usize) ![]u8 {
 pub fn sign(allocator: std.mem.Allocator, payload: []const u8, key: []const u8, options: SignOptions) ZstError![]u8 {
     if (key.len < MIN_KEY_LEN) return error.KeyTooShort;
 
-    // 1. Parse payload JSON into Claims
     const claims = claims_mod.parseClaimsJson(allocator, payload) catch return error.InvalidPayload;
     defer freeClaims(allocator, claims);
 
-    // 2. Apply options to claims
     var final_claims = claims;
     if (options.audience) |aud| final_claims.aud = aud;
     if (options.issuer) |iss| final_claims.iss = iss;
@@ -71,37 +69,30 @@ pub fn sign(allocator: std.mem.Allocator, payload: []const u8, key: []const u8, 
     if (options.jwtid) |jti| final_claims.jti = jti;
     if (options.rev) |rev| final_claims.rev = rev;
 
-    // 3. Serialize claims to JSON
     var claims_buf: [Claims.MAX_CLAIMS_JSON_LEN]u8 = undefined;
     const claims_json = claims_mod.serializeClaimsJson(&claims_buf, final_claims) catch return error.InvalidPayload;
 
-    // 4. Derive encryption key using BLAKE2b KDF
     var enc_key: [32]u8 = undefined;
     blake2b.deriveKey(key, "zst-v1-local-encryption", &enc_key);
 
-    // 5. Generate random nonce
     var nonce: [NONCE_LEN]u8 = undefined;
     rand.fillRandom(&nonce);
 
-    // 6. Encrypt with XChaCha20-Poly1305
     const encrypted = xchacha20.encrypt(allocator, claims_json, &enc_key, &nonce) catch return error.EncryptionFailed;
     defer allocator.free(encrypted.ciphertext);
 
-    // 7. Base64url-encode all parts
     var header_buf: [64]u8 = undefined;
     const header_b64 = base64urlEncodeInto(&header_buf, claims_mod.Header.HEADER_JSON);
 
     var nonce_buf: [64]u8 = undefined;
     const nonce_b64 = base64urlEncodeInto(&nonce_buf, &nonce);
 
-    // Max ciphertext base64: ceil(plaintext_len / 3) * 4 + 4
     var ct_buf: [Claims.MAX_CLAIMS_JSON_LEN * 2 + 8]u8 = undefined;
     const ciphertext_b64 = base64urlEncodeInto(&ct_buf, encrypted.ciphertext);
 
     var tag_buf: [64]u8 = undefined;
     const tag_b64 = base64urlEncodeInto(&tag_buf, &encrypted.tag);
 
-    // 8. Package into token format: zst_v1.local.<header_b64>.<nonce_b64>.<ciphertext_b64>.<tag_b64>
     const token_len = TOKEN_PREFIX.len + header_b64.len + 1 + nonce_b64.len + 1 + ciphertext_b64.len + 1 + tag_b64.len;
     const token = allocator.alloc(u8, token_len) catch return error.AllocFailed;
     errdefer allocator.free(token);
@@ -137,10 +128,8 @@ pub fn sign(allocator: std.mem.Allocator, payload: []const u8, key: []const u8, 
 pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, options: VerifyOptions) !VerifyResult {
     if (key.len < MIN_KEY_LEN) return error.KeyTooShort;
 
-    // 1. Parse token format: zst_v1.local.<header_b64>.<nonce_b64>.<ciphertext_b64>.<tag_b64>
     const parts = splitToken(token) catch return error.MalformedToken;
 
-    // 2. Base64url-decode parts
     const nonce = base64urlDecodeAlloc(allocator, parts.nonce) catch return error.MalformedToken;
     defer allocator.free(nonce);
     const ciphertext = base64urlDecodeAlloc(allocator, parts.ciphertext) catch return error.MalformedToken;
@@ -151,11 +140,9 @@ pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, 
     if (nonce.len != NONCE_LEN) return error.MalformedToken;
     if (tag_bytes.len != TAG_LEN) return error.MalformedToken;
 
-    // 3. Derive encryption key using BLAKE2b KDF
     var enc_key: [32]u8 = undefined;
     blake2b.deriveKey(key, "zst-v1-local-encryption", &enc_key);
 
-    // 4. Verify tag (constant-time comparison)
     var tag: [TAG_LEN]u8 = undefined;
     @memcpy(&tag, tag_bytes);
     const expected_tag = xchacha20.poly1305ComputeTag(ciphertext, &enc_key);
@@ -163,17 +150,14 @@ pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, 
         return error.InvalidSignature;
     }
 
-    // 5. Decrypt ciphertext
     var nonce_arr: [NONCE_LEN]u8 = undefined;
     @memcpy(&nonce_arr, nonce);
     const plaintext = xchacha20Decrypt(allocator, ciphertext, &enc_key, &nonce_arr) catch return error.DecryptionFailed;
     defer allocator.free(plaintext);
 
-    // 6. Parse claims JSON
     const claims = claims_mod.parseClaimsJson(allocator, plaintext) catch return error.InvalidPayload;
     errdefer freeClaims(allocator, claims);
 
-    // 7. Validate claims
     const now: u64 = options.clock_timestamp orelse getCurrentTimestamp();
 
     if (!options.ignore_expiration) {
@@ -222,7 +206,6 @@ pub fn verify(allocator: std.mem.Allocator, token: []const u8, key: []const u8, 
 }
 
 pub fn decode(token: []const u8) !DecodedHeader {
-    // Just parse the header from the token prefix
     _ = splitToken(token) catch return error.MalformedToken;
 
     return DecodedHeader{
@@ -233,10 +216,6 @@ pub fn decode(token: []const u8) !DecodedHeader {
     };
 }
 
-// ────────────────────────────────────────────────────────
-//  Helper functions
-// ────────────────────────────────────────────────────────
-
 const TokenParts = struct {
     header: []const u8,
     nonce: []const u8,
@@ -245,11 +224,9 @@ const TokenParts = struct {
 };
 
 fn splitToken(token: []const u8) !TokenParts {
-    // Skip prefix
     if (!std.mem.startsWith(u8, token, TOKEN_PREFIX)) return error.MalformedToken;
     var rest = token[TOKEN_PREFIX.len..];
 
-    // Split by '.' — expect exactly 4 parts
     const header_end = std.mem.indexOfScalar(u8, rest, '.') orelse return error.MalformedToken;
     const header = rest[0..header_end];
     rest = rest[header_end + 1 ..];
@@ -292,14 +269,12 @@ fn getCurrentTimestamp() u64 {
             return @intCast(ts.sec);
         },
         else => {
-            // Fallback: return 0 (caller must provide clock_timestamp)
             return 0;
         },
     }
 }
 
 fn xchacha20Decrypt(allocator: std.mem.Allocator, ciphertext: []const u8, key: *const [32]u8, nonce: *const [24]u8) ![]u8 {
-    // Our xchacha20 module doesn't have decrypt, so we XOR with keystream (symmetric)
     var key_words: [8]u32 = undefined;
     for (0..8) |i| {
         key_words[i] = std.mem.readInt(u32, key[i * 4 ..][0..4], .little);
@@ -342,10 +317,6 @@ fn freeClaims(allocator: std.mem.Allocator, claims: Claims) void {
     if (claims.iss) |iss| allocator.free(iss);
 }
 
-// ────────────────────────────────────────────────────────
-//  Tests
-// ────────────────────────────────────────────────────────
-
 test "constants have correct values" {
     try std.testing.expectEqualStrings("1", VERSION);
     try std.testing.expectEqualStrings("ZST", TYPE);
@@ -357,12 +328,9 @@ test "constants have correct values" {
 }
 
 test "constants token prefix matches format" {
-    // Token format: zst_v1.local.<header_b64>.<nonce_b64>.<ciphertext_b64>.<tag_b64>
     try std.testing.expect(std.mem.startsWith(u8, TOKEN_PREFIX, "zst_v1"));
     try std.testing.expect(std.mem.endsWith(u8, TOKEN_PREFIX, "."));
 }
-
-// ── generateKey ─────────────────────────────────────────
 
 test "generateKey rejects key shorter than MIN_KEY_LEN" {
     try std.testing.expectError(error.KeyTooShort, generateKey(std.testing.allocator, 0));
@@ -408,8 +376,6 @@ test "generateKey fills all bytes (no zeros)" {
     try std.testing.expect(!all_zero);
 }
 
-// ── sign ──────────────────────────────────────────────────
-
 test "sign rejects short key" {
     const key = [_]u8{0x42} ** 16;
     const result = sign(std.testing.allocator, "{}", &key, .{});
@@ -427,10 +393,7 @@ test "sign produces valid token with required claims" {
     const token = try sign(std.testing.allocator, payload, &key, .{});
     defer std.testing.allocator.free(token);
 
-    // Token should start with prefix
     try std.testing.expect(std.mem.startsWith(u8, token, TOKEN_PREFIX));
-    // Token should have 3 dot-separated parts after prefix (header.nonce.ciphertext.tag)
-    // Prefix "zst_v1.local." has 2 dots, then 3 separator dots = 5 total
     var dot_count: usize = 0;
     for (token) |c| {
         if (c == '.') dot_count += 1;
@@ -449,8 +412,6 @@ test "sign applies options to claims" {
     defer std.testing.allocator.free(token);
     try std.testing.expect(std.mem.startsWith(u8, token, TOKEN_PREFIX));
 }
-
-// ── verify ───────────────────────────────────────────────
 
 test "verify rejects short key" {
     const key = [_]u8{0x42} ** 16;
@@ -562,8 +523,6 @@ test "verify with all options set" {
     try std.testing.expectEqualStrings("user_123", result.payload.sub.?);
 }
 
-// ── decode ──────────────────────────────────────────────
-
 test "decode returns correct header fields for valid token" {
     const key = [_]u8{0x42} ** 32;
     const payload = "{\"sub\":\"user_123\",\"aud\":\"api.example.com\",\"exp\":1700000000,\"rev\":1}";
@@ -587,8 +546,6 @@ test "decode rejects token without prefix" {
     try std.testing.expectError(error.MalformedToken, result);
 }
 
-// ── SignOptions defaults ────────────────────────────────
-
 test "SignOptions defaults are null" {
     const opts = SignOptions{};
     try std.testing.expect(opts.expires_in == null);
@@ -599,8 +556,6 @@ test "SignOptions defaults are null" {
     try std.testing.expect(opts.jwtid == null);
     try std.testing.expect(opts.rev == null);
 }
-
-// ── VerifyOptions defaults ──────────────────────────────
 
 test "VerifyOptions defaults" {
     const opts = VerifyOptions{};
@@ -616,8 +571,6 @@ test "VerifyOptions defaults" {
     try std.testing.expect(!opts.ignore_expiration);
     try std.testing.expect(!opts.ignore_not_before);
 }
-
-// ── VerifyResult structure ──────────────────────────────
 
 test "VerifyResult can hold payload and header" {
     const result = VerifyResult{
@@ -641,8 +594,6 @@ test "VerifyResult can hold payload and header" {
     try std.testing.expect(result.header.encrypted);
 }
 
-// ── Re-exports compile check ────────────────────────────
-
 test "Claims type is accessible" {
     const c = Claims{ .sub = "test" };
     try std.testing.expectEqualStrings("test", c.sub.?);
@@ -659,7 +610,6 @@ test "DecodedHeader type is accessible" {
 }
 
 test "ZstError type is accessible" {
-    // Just verify it compiles and the error set is usable
     const result: ZstError = error.Expired;
     try std.testing.expectEqual(error.Expired, result);
 }

@@ -4,7 +4,6 @@ const SpinLock = std.atomic.Mutex;
 
 pub const EPOCH: u64 = 1767225600000;
 
-// Snowflake structure: 41 bits timestamp, 10 bits node ID, 12 bits sequence
 const TIMESTAMP_BITS: u6 = 41;
 const NODE_ID_BITS: u6 = 10;
 const SEQUENCE_BITS: u6 = 12;
@@ -16,7 +15,7 @@ const MAX_SEQUENCE: u12 = (1 << SEQUENCE_BITS) - 1;
 const MAX_NODE_ID: u10 = (1 << NODE_ID_BITS) - 1;
 
 pub const SnowflakeState = struct {
-    last_timestamp: u64 = 0, 
+    last_timestamp: u64 = 0,
     sequence: u12 = 0,
     node_id: u10,
     mutex: SpinLock = .unlocked,

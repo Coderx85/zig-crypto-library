@@ -1,6 +1,5 @@
 import { Snowflake } from "../../index.js";
 
-// Measure raw throughput of single ID generation
 function benchSingle(count: number): void {
   const start = process.hrtime.bigint();
   for (let i = 0; i < count; i++) {
@@ -9,11 +8,10 @@ function benchSingle(count: number): void {
   const elapsed = Number(process.hrtime.bigint() - start) / 1e3;
   console.log(
     `${count} single Id() calls:  ${elapsed.toFixed(0)}µs ` +
-    `(${(count / elapsed * 1e6).toFixed(0)} IDs/sec)`
+      `(${((count / elapsed) * 1e6).toFixed(0)} IDs/sec)`
   );
 }
 
-// Measure batch throughput
 function benchBatch(count: number, batchSize: number): void {
   const iterations = Math.floor(count / batchSize);
   const start = process.hrtime.bigint();
@@ -24,7 +22,7 @@ function benchBatch(count: number, batchSize: number): void {
   const totalIds = iterations * batchSize;
   console.log(
     `${iterations} Batch(${batchSize}) calls: ${elapsed.toFixed(0)}µs ` +
-    `(${(totalIds / elapsed * 1e6).toFixed(0)} IDs/sec)`
+      `(${((totalIds / elapsed) * 1e6).toFixed(0)} IDs/sec)`
   );
 }
 

@@ -1,8 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-/// Fill buffer with cryptographically secure random bytes.
-/// Platform-specific CSPRNG: getrandom (Linux), arc4random_buf (macOS), BCryptGenRandom (Windows).
 pub fn fillRandom(buf: []u8) void {
     switch (builtin.os.tag) {
         .linux => {

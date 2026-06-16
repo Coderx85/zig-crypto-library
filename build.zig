@@ -4,7 +4,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Napi Module Metadata
     const napi_include = b.option([]const u8, "napi-include", "Path to node-api-headers include directory");
 
     const napi_lib = b.addLibrary(.{
@@ -50,12 +49,6 @@ pub fn build(b: *std.Build) void {
     const hex_tests = b.addTest(.{ .root_module = hex_mod });
     const run_hex_tests = b.addRunArtifact(hex_tests);
 
-    // NOTE: base64_mod and token_mod excluded from standalone test targets
-    // due to cross-directory imports (../c.zig). They compile fine when
-    // imported by napi.zig. Run their tests via the N-API build instead.
-
-    // ── ZST module test targets ──────────────────────────
-
     const xchacha20_mod = b.addModule("xchacha20", .{
         .root_source_file = b.path("src/token/xchacha20.zig"),
         .target = target,
@@ -93,8 +86,6 @@ pub fn build(b: *std.Build) void {
     });
     const zst_errors_tests = b.addTest(.{ .root_module = zst_errors_mod });
     const run_zst_errors_tests = b.addRunArtifact(zst_errors_tests);
-
-    // ── Test step ────────────────────────────────────────
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_snowflake_tests.step);

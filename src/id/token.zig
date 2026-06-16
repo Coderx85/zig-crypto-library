@@ -1,5 +1,3 @@
-/// DEPRECATED: This module is replaced by src/token/zst.zig (ZST secure tokens).
-/// Kept for backward compatibility. Will be removed in v4.0.0.
 const std = @import("std");
 const builtin = @import("builtin");
 const c = @import("../c.zig");
