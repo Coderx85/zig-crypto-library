@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: 18
       - name: Install Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@v2
       - name: Cache Zig
         uses: actions/cache@v4
         with:
