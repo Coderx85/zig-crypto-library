@@ -21,8 +21,6 @@ pub fn build(b: *std.Build) void {
     }
     b.installArtifact(napi_lib);
 
-    // ── Module test targets ──────────────────────────────
-
     const rand_mod = b.addModule("rand", .{
         .root_source_file = b.path("src/crypto/rand.zig"),
         .target = target,
