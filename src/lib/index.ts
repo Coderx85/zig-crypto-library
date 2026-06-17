@@ -3,14 +3,12 @@ export type { NanoidFunction } from "./nanoid.types";
 export type { SnowflakeModule } from "./snowflake.types";
 export type {
   ZstPayload,
-  ZstHeader,
-  ZstCompleteResult,
   ZstDecodedHeader,
   ZstSignOptions,
   ZstVerifyOptions,
   ZstDecodeOptions,
   ZstModule,
-} from "./zst.types";
+} from "./native.types";
 export {
   ZstError,
   ZstExpiredError,

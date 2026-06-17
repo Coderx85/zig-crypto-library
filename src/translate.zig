@@ -8,6 +8,19 @@ pub fn throw(env: c.napi_env, comptime msg: [:0]const u8) Error {
     return Error.ExceptionThrown;
 }
 
+pub fn throwRuntime(env: c.napi_env, msg: []const u8) Error {
+    var error_msg: c.napi_value = undefined;
+    if (c.napi_create_string_utf8(env, msg.ptr, msg.len, &error_msg) != c.napi_ok) {
+        return Error.ExceptionThrown;
+    }
+    var error_obj: c.napi_value = undefined;
+    if (c.napi_create_error(env, null, error_msg, &error_obj) != c.napi_ok) {
+        return Error.ExceptionThrown;
+    }
+    _ = c.napi_throw(env, error_obj);
+    return Error.ExceptionThrown;
+}
+
 pub fn throwRangeError(env: c.napi_env, comptime msg: [:0]const u8) Error {
     var msg_val: c.napi_value = undefined;
     _ = c.napi_create_string_utf8(env, msg, msg.len, &msg_val);

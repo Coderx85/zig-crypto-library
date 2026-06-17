@@ -788,7 +788,7 @@ fn Zst_Sign(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_val
             return null;
         };
         const token = zst.sign(allocator, payload_str, key_str, .{}) catch |err| {
-            t.throw(env, @typeName(@TypeOf(err))) catch {};
+            t.throwRuntime(env, @errorName(err)) catch {};
             return null;
         };
         return t.createString(env, token) catch return null;
@@ -811,7 +811,7 @@ fn Zst_Sign(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_val
     }
 
     const token = zst.sign(allocator, payload_str, key_bytes, options) catch |err| {
-        t.throw(env, @typeName(@TypeOf(err))) catch {};
+        t.throwRuntime(env, @errorName(err)) catch {};
         return null;
     };
 
@@ -840,7 +840,7 @@ fn Zst_Verify(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
             return null;
         };
         _ = zst.verify(allocator, token_str, key_str, .{}) catch |err| {
-            t.throw(env, @typeName(@TypeOf(err))) catch {};
+            t.throwRuntime(env, @errorName(err)) catch {};
             return null;
         };
         return null;
@@ -866,7 +866,7 @@ fn Zst_Verify(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
     }
 
     const result = zst.verify(allocator, token_str, key_bytes, options) catch |err| {
-        t.throw(env, @typeName(@TypeOf(err))) catch {};
+        t.throwRuntime(env, @errorName(err)) catch {};
         return null;
     };
 
@@ -939,7 +939,7 @@ fn Zst_Decode(env: c.napi_env, info: c.napi_callback_info) callconv(.c) c.napi_v
     const token_str = t.getString(env, argv[0], allocator) catch return null;
 
     const header = zst.decode(token_str) catch |err| {
-        t.throw(env, @typeName(@TypeOf(err))) catch {};
+        t.throwRuntime(env, @errorName(err)) catch {};
         return null;
     };
 

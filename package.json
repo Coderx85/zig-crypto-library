@@ -1,6 +1,6 @@
 {
   "name": "zig-crypto",
-  "version": "0.2.54",
+  "version": "0.2.56",
   "description": "A zero-allocation, N-ABI-stable Node.js native extension for high-performance nanoid and Snowflake ID generation, written in Zig",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -24,7 +24,9 @@
     "prepack": "tsc",
     "test": "node dist/test/test.js",
     "pretest": "tsc",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:native": "zig build -Dnapi-include=node_modules/node-api-headers/include && mkdir -p dist/bin && cp zig-out/lib/libzig_id.so dist/bin/x86_64-linux-gnu/zig-id.node",
+    "build:all": "npm run build:native && npm run build"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",

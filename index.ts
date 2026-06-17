@@ -343,7 +343,7 @@ export const zst: ZstModule = {
     return load.zstDecode(token) as unknown as ZstDecodedHeader;
   },
   generateKey(length?: number): Buffer {
-    return load.zstGenerateKey(length);
+    return Buffer.from(load.zstGenerateKey(length));
   },
 };
 

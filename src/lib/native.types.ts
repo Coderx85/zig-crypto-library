@@ -1,3 +1,70 @@
+export interface ZstPayload {
+  sub: string;
+  aud: string;
+  exp: number;
+  iat: number;
+  jti: string;
+  rev: number;
+  iss?: string;
+  nbf?: number;
+  [key: string]: any;
+}
+
+export interface ZstDecodedHeader {
+  ver: string;
+  typ: string;
+  mode: string;
+  encrypted: boolean;
+}
+
+export interface ZstSignOptions {
+  expiresIn?: number | string;
+  notBefore?: number | string;
+  audience?: string;
+  issuer?: string;
+  subject?: string;
+  jwtid?: string;
+  rev?: number;
+  header?: Record<string, any>;
+  mutatePayload?: boolean;
+}
+
+export interface ZstVerifyOptions {
+  audience?: string;
+  issuer?: string;
+  subject?: string;
+  jwtid?: string;
+  currentRev?: number;
+  clockTolerance?: number;
+  clockTimestamp?: number;
+  maxAge?: number | string;
+  complete?: boolean;
+  ignoreExpiration?: boolean;
+  ignoreNotBefore?: boolean;
+}
+
+export interface ZstDecodeOptions {
+  complete?: boolean;
+}
+
+export interface ZstModule {
+  sign(
+    payload: object | string | Buffer,
+    secret: string | Buffer | Uint8Array,
+    options?: ZstSignOptions
+  ): string;
+
+  verify(
+    token: string,
+    secret: string | Buffer | Uint8Array,
+    options?: ZstVerifyOptions
+  ): ZstPayload;
+
+  decode(token: string, options?: ZstDecodeOptions): ZstDecodedHeader;
+
+  generateKey(length?: number): Buffer;
+}
+
 export interface NativeBindings {
   Id(): bigint;
   Batch(count: number): bigint[];
@@ -17,36 +84,8 @@ export interface NativeBindings {
   base58Decode(data: string): ArrayBuffer;
   hexEncode(data: Buffer, options?: { upper?: boolean }): string;
   hexDecode(data: string): ArrayBuffer;
-  zstSign(
-    payload: string,
-    key: Buffer,
-    options?: {
-      expiresIn?: number | string;
-      notBefore?: number | string;
-      audience?: string;
-      issuer?: string;
-      subject?: string;
-      jwtid?: string;
-      rev?: number;
-    }
-  ): string;
-  zstVerify(
-    token: string,
-    key: Buffer,
-    options?: {
-      audience?: string;
-      issuer?: string;
-      subject?: string;
-      jwtid?: string;
-      currentRev?: number;
-      clockTolerance?: number;
-      clockTimestamp?: number;
-      maxAge?: number | string;
-      complete?: boolean;
-      ignoreExpiration?: boolean;
-      ignoreNotBefore?: boolean;
-    }
-  ): Record<string, unknown>;
-  zstDecode(token: string): Record<string, unknown>;
+  zstSign(payload: string, key: Buffer, options?: ZstSignOptions): string;
+  zstVerify(token: string, key: Buffer, options?: ZstVerifyOptions): ZstPayload;
+  zstDecode(token: string): ZstDecodedHeader;
   zstGenerateKey(length?: number): Buffer;
 }
