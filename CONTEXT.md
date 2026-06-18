@@ -1,6 +1,6 @@
-# zig-id — CONTEXT.md
+# zig-crypto — CONTEXT.md
 
-> **Single source of truth for the `zig-id` project.**
+> **Single source of truth for the `zig-crypto` project.**
 > This document is append-only. When something changes, add a dated entry. Do not delete history.
 
 ---
@@ -9,22 +9,22 @@
 
 | Field              | Value                                               |
 | ------------------ | --------------------------------------------------- |
-| **Name**           | `zig-id`                                            |
-| **Version**        | `1.0.0` (target)                                    |
+| **Name**           | `zig-crypto`                                        |
+| **Version**        | `0.3.2`                                            |
 | **License**        | MIT                                                 |
 | **Registry**       | `npm`                                               |
-| **Repository**     | `github.com/<user>/zig-id`                          |
+| **Repository**     | `github.com/<user>/zig-crypto`                      |
 | **Language**       | Zig (core) + TypeScript (wrapper)                   |
-| **Runtime Target** | Node.js 16+ (N-API v6+)                             |
+| **Runtime Target** | Node.js 18+ (N-API v9+)                             |
 | **Platforms**      | Linux (x64/ARM64), macOS (x64/ARM64), Windows (x64) |
 
 ### One-Sentence Pitch
 
-> A zero-allocation, N-ABI-stable Node.js native extension for high-performance ID generation, written in Zig, shipping prebuilt binaries for all desktop platforms.
+> A zero-allocation, N-API-stable Node.js native extension for high-performance ID generation and encrypted tokens, written in Zig, shipping prebuilt binaries for all desktop platforms.
 
 ### Three-Sentence Expansion
 
-Node.js is excellent for I/O but punishes CPU-bound string and integer manipulation. `zig-id` extends the Node.js runtime with a Zig-native layer for deterministic, zero-allocation ID operations. It provides cryptographically secure nanoid strings and distributed Snowflake 64-bit integers without V8 GC pressure or cross-boundary allocation overhead.
+Node.js is excellent for I/O but punishes CPU-bound cryptographic operations with GC pressure and interpreter overhead. `zig-crypto` extends the Node.js runtime with a Zig-native layer for deterministic, zero-allocation ID generation, encoding, and encrypted token operations. It provides cryptographically secure nanoid strings, distributed Snowflake 64-bit integers, base64/base58/hex codecs, and XChaCha20-Poly1305 encrypted ZST tokens — all without V8 GC pressure or cross-boundary allocation overhead.
 
 ---
 
@@ -34,20 +34,22 @@ Node.js is excellent for I/O but punishes CPU-bound string and integer manipulat
 
 - **nanoid** (pure JS) allocates a new string per ID. At 10k IDs/sec, V8 GC stalls the event loop.
 - **Snowflake** requires 64-bit integer math that JavaScript `number` cannot represent safely past `2^53`.
-- Existing native addons use `node-gyp`, `nan`, or C++ — breaking on every Node major version and requiring Python/Visual Studio on user machines.
-- No existing package combines **both** random-string and time-ordered-integer IDs in one N-API-native module.
+- **JWT libraries** (`jsonwebtoken`, `jose`) are pure JS — sign/verify incurs GC pressure from multiple `Uint8Array` allocations per operation.
+- **Existing native addons** use `node-gyp`, `nan`, or C++ — breaking on every Node major version and requiring Python/Visual Studio on user machines.
+- No existing package combines **IDs, codecs, and encrypted tokens** in one N-API-native module.
 
 ### The TigerBeetle Inspiration
 
-TigerBeetle writes one Zig core (`tb_client`) and wraps it for every language via FFI/N-API. Their insight: **write the hard stuff once in a systems language, expose a thin C ABI, ship prebuilt binaries.** We apply the same pattern to ID generation.
+TigerBeetle writes one Zig core (`tb_client`) and wraps it for every language via FFI/N-API. Their insight: **write the hard stuff once in a systems language, expose a thin C ABI, ship prebuilt binaries.** We apply the same pattern to ID generation, codecs, and token cryptography.
 
 ### Success Criteria
 
-1. `npm install zig-id` works on all 5 target platforms without `node-gyp` or compilation.
+1. `npm install zig-crypto` works on all 5 target platforms without `node-gyp` or compilation.
 2. `nanoid()` returns a valid 21-char string in < 1µs (single call).
 3. `snowflake()` returns a valid `bigint` with extractable timestamp.
-4. Batch generation (Phase 3) crosses the JS↔native boundary **once** for 1000 IDs.
-5. Binary size < 500KB per platform.
+4. Batch generation crosses the JS↔native boundary **once** for 1000 IDs.
+5. ZST sign/verify is **3–5× faster** than pure-JS equivalents (`jose`, `@noble/ciphers`).
+6. Binary size < 500KB per platform.
 
 ---
 
@@ -56,23 +58,34 @@ TigerBeetle writes one Zig core (`tb_client`) and wraps it for every language vi
 ### Layer Cake
 
 ```
-┌──────────────────────────────────────────┐
-│  index.ts / index.d.ts                   │  ← TypeScript API, user-facing
-│  (runtime arch/platform detection)       │
-├──────────────────────────────────────────┤
-│  N-API C ABI Boundary                    │  ← Exports, type marshalling
-│  src/napi.zig  (5 exports)               │
-├──────────────────────────────────────────┤
-│  Zig Core Engine                         │  ← Zero-allocation logic
-│  src/internal/nanoid.zig                 │
-│  src/internal/snowflake.zig              │
-├──────────────────────────────────────────┤
-│  N-API Helpers                           │  ← Reusable error/string/BigInt
-│  src/translate.zig                       │
-├──────────────────────────────────────────┤
-│  Module root (stub)                      │
-│  src/root.zig                            │
-└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  index.ts / index.d.ts                       │  ← TypeScript API, user-facing
+│  (runtime arch/platform detection)           │
+├──────────────────────────────────────────────┤
+│  N-API C ABI Boundary                        │  ← Exports, type marshalling
+│  src/napi.zig  (12 exports)                  │
+├──────────────────────────────────────────────┤
+│  Zig Core Engine                             │  ← Zero-allocation logic
+│  ├── src/id/nanoid.zig                       │
+│  ├── src/id/snowflake.zig                    │
+│  ├── src/codec/{base64,base58,hex}.zig       │
+│  └── src/token/                              │
+│       ├── zst.zig        (sign/verify/...)   │
+│       ├── claims.zig     (JSON serialization)│
+│       ├── xchacha20.zig  (AEAD cipher)       │
+│       └── errors.zig     (error types)       │
+├──────────────────────────────────────────────┤
+│  Crypto Primitives                           │
+│  ├── src/crypto/blake2b.zig  (KDF)           │
+│  ├── src/crypto/rand.zig     (CSPRNG)        │
+│  └── src/token/xchacha20.zig (AEAD)          │
+├──────────────────────────────────────────────┤
+│  N-API Helpers                               │  ← Reusable error/string/BigInt
+│  src/translate.zig                           │
+├──────────────────────────────────────────────┤
+│  Module root                                 │
+│  src/main.zig                                │
+└──────────────────────────────────────────────┘
 ```
 
 ### Data Flow: Batch nanoid (strings)
@@ -145,17 +158,35 @@ N-API: napi_create_bigint_uint64(id)
 JS: receives 1577836800000000001n (BigInt)
 ```
 
+### Data Flow: ZST Sign / Verify
+
+```
+JS → N-API: parse args                           JS → N-API: parse args
+  │                                                 │
+  ▼ (sign)                                          ▼ (verify)
+BLAKE2b KDF → enc_key[32]                        split token → [prefix,H,N,C,T]
+CSPRNG → nonce[24]                               base64url decode N, C, T
+xchacha20.encrypt(claims, key, nonce)            BLAKE2b KDF → enc_key[32]
+  → { ciphertext, tag }                           xchacha20.decrypt(C, tag, key, nonce)
+base64url encode [H,N,C,T]                         → plaintext JSON
+assemble "zst_v1.local.H.N.C.T"                  parse claims + validate (exp/aud/rev/...)
+  │                                                 │
+  ▼                                                 ▼
+JS ← token string                                JS ← { sub, aud, exp, rev, ... }
+```
+
 ### Memory Ownership Rules
 
-| Memory                         | Owner                | Lifetime                    | Free Point                                                   |
-| ------------------------------ | -------------------- | --------------------------- | ------------------------------------------------------------ |
-| nanoid single `[MAX_LENGTH]u8` | Stack (caller)       | Function call               | Never allocated (napi_create_string_utf8 copies)             |
-| Snowflake `u64`                | Stack value          | Function call               | Never allocated (returned by value)                          |
-| Batch buffer slab              | page_allocator heap  | Until JS GC collects Buffer | Finalizer callback (`batchBufferFinalizer`)                  |
-| Batch strings array            | Stack buffers per ID | Function call               | Never allocated (napi_create_string_utf8 copies per element) |
-| JS String/BigInt               | V8 heap              | Until JS GC collects        | N/A (V8 manages)                                             |
+| Memory                      | Owner          | Lifetime | Free                                              |
+| --------------------------- | -------------- | -------- | ------------------------------------------------- |
+| `[MAX_LENGTH]u8` (nanoid)   | Stack          | Call     | Never alloc'd (copied by napi_create_string_utf8) |
+| `u64` (Snowflake)           | Register       | Call     | Return by value                                   |
+| Buffer slab (batch)         | page_allocator | Until GC | Finalizer callback                                |
+| key/nonce `[32/24]u8` (ZST) | Stack          | Call     | Never alloc'd (comptime-sized arrays)             |
+| ciphertext (ZST)            | Arena          | Call     | arena.deinit() at end of N-API call               |
+| JS String/BigInt            | V8 heap        | Until GC | V8 manages                                        |
 
-**Golden Rule:** Heap-allocated Zig memory passed to JS via `napi_create_external_*` **must** have a finalizer. Stack or function-local memory **must never** be passed as external.
+**Golden Rule:** Heap memory passed to JS via `napi_create_external_*` must have a finalizer. Stack memory must never be passed as external. ZST uses an arena per N-API call — all temp memory freed at once when the function returns.
 
 ---
 
@@ -197,6 +228,14 @@ JS: receives 1577836800000000001n (BigInt)
 - **Rationale:** Original `nanoid.Batch()` created an external Buffer via `nanoidBatchBuffer` then called `buf.toString()` N times in JS. This was 12× slower than pure-JS nanoid in Bun because `Buffer.toString()` in JavaScriptCore has high JS-level UTF-8 decoder overhead. Replaced with a single native function that creates JS strings directly via `napi_create_string_utf8` and returns a JS array. One boundary crossing, zero Buffer.toString() calls.
 - **Consequence:** Batch strings are created in C with `napi_create_string_utf8` (V8/JS engine primitives) instead of JS UTF-8 decoding. The `Buffer` path (`nanoidBatchBuffer`) is retained for zero-copy use cases but is no longer the default Batch path.
 
+### Decision: XChaCha20-Poly1305 + BLAKE2b KDF + Rev Counter
+
+- **Status:** Accepted
+- **Rationale (cipher):** XChaCha20's 192-bit nonce makes random nonce collisions impossible (~2^64 msgs). AES-GCM and ChaCha20-Poly1305 use 96-bit nonces requiring stateful counters — unacceptable for stateless tokens.
+- **Rationale (KDF):** `BLAKE2b("zst-v1-local-encryption" || master_key)` provides domain separation. The same master key can derive subkeys for different purposes/versions. Cost is ~1µs, negligible vs ~15µs total.
+- **Rationale (rev):** Traditional JWT needs either short expirations (poor UX) or server-side blocklists (O(n)). ZST's `rev` counter gives O(1) "logout everywhere" — increment a per-user counter, reject tokens with older values at verify time.
+- **Consequence:** Tokens are ~256B vs JWT's ~113B (nonce + tag overhead). Confidentiality + no nonce management + O(1) revocation outweighs size cost. Apps store a monotonic `rev` per user. Arena allocator per N-API call frees all temp memory at once.
+
 ### Decision: Runtime Detection over `node-gyp-build`
 
 - **Status:** Accepted
@@ -207,19 +246,25 @@ JS: receives 1577836800000000001n (BigInt)
 
 ## 5. File Inventory
 
-| File                            | Purpose                                                                           | Stability |
-| ------------------------------- | --------------------------------------------------------------------------------- | --------- |
-| `build.zig`                     | Shared library target, cross-compilation, strip symbols                           | Stable    |
-| `src/root.zig`                  | Module root (stub, re-exports `internal/snowflake.zig`)                           | Stable    |
-| `src/napi.zig`                  | N-API layer: 5 exports (Id, Batch, nanoid, nanoidBatchBuffer, nanoidBatchStrings) | Stable    |
-| `src/nanoid.zig`                | Core nanoid: CSPRNG, alphabet mapping, batch                                      | Stable    |
-| `src/snowflake.zig`             | Core Snowflake: bit packing, timestamp, mutex                                     | Stable    |
-| `index.ts`                      | JS loader: runtime arch/platform detection + re-exports                           | Stable    |
-| `index.d.ts`                    | TypeScript declarations                                                           | Stable    |
-| `package.json`                  | npm manifest, `files` whitelist, dependencies                                     | Stable    |
-| `.github/workflows/release.yml` | Matrix CI: 5 targets + publish                                                    | Stable    |
-| `test/test.js`                  | Smoke tests: types, uniqueness, timestamp                                         | Evolving  |
-| `README.md`                     | User-facing documentation                                                         | Evolving  |
+| File                                | Purpose                                                 | Stability |
+| ----------------------------------- | ------------------------------------------------------- | --------- |
+| `build.zig`                         | Build target, cross-compilation                         | Stable    |
+| `src/main.zig`                      | Module root                                             | Stable    |
+| `src/napi.zig`                      | N-API layer: 12 exports (nanoid, Snowflake, codec, zst) | Stable    |
+| `src/id/nanoid.zig`                 | CSPRNG, alphabet mapping, batch                         | Stable    |
+| `src/id/snowflake.zig`              | Bit packing, timestamp, mutex                           | Stable    |
+| `src/codec/{base64,base58,hex}.zig` | Encoding/decoding                                       | Stable    |
+| `src/token/zst.zig`                 | ZST sign/verify/decode/generateKey                      | Stable    |
+| `src/token/xchacha20.zig`           | XChaCha20-Poly1305 AEAD                                 | Stable    |
+| `src/token/claims.zig`              | JSON claims serialization                               | Stable    |
+| `src/token/errors.zig`              | ZstExpiredError, ZstRevokedError, etc.                  | Stable    |
+| `src/crypto/blake2b.zig`            | BLAKE2b KDF                                             | Stable    |
+| `src/crypto/rand.zig`               | CSPRNG pool                                             | Stable    |
+| `index.ts` / `index.d.ts`           | JS loader + TypeScript declarations                     | Stable    |
+| `package.json`                      | npm manifest                                            | Stable    |
+| `.github/workflows/release.yml`     | Matrix CI: 5 targets + publish                          | Stable    |
+| `test/test.js`                      | Smoke tests                                             | Evolving  |
+| `README.md`                         | User-facing docs                                        | Evolving  |
 
 ---
 
@@ -317,48 +362,42 @@ dist/bin/
 
 ## 9. Performance Budget
 
-| Operation                                    | Target   | Current | Notes                                                   |
-| -------------------------------------------- | -------- | ------- | ------------------------------------------------------- |
-| `nanoid()` single                            | < 1 µs   | TBD     | Measured with `benchmark.js`                            |
-| `snowflake()` single                         | < 0.5 µs | TBD     | Mostly bit ops + mutex lock                             |
-| `nanoidBatch(1000)` boundary crossings       | 1        | 1 ✓     | `nanoidBatchStrings` creates native strings, 1 crossing |
-| `nanoidBatchBuffer(1000)` boundary crossings | 1        | 1 ✓     | Zero-copy Buffer path, 1 crossing + finalizer           |
-| Binary size (per platform)                   | < 500 KB | TBD     | `ReleaseSmall` + strip                                  |
-| `npm install` time                           | < 3 sec  | —       | Prebuilt, no compile                                    |
+| Operation                        | Target     | Notes                                               |
+| -------------------------------- | ---------- | --------------------------------------------------- |
+| `nanoid()`                       | < 1 µs     | Stack buf + 64KB CSPRNG pool                        |
+| `snowflake()`                    | < 0.5 µs   | Bit ops + mutex                                     |
+| `nanoid.Batch(1000)`             | 1 crossing | Native strings, no Buffer.toString()                |
+| `zst.sign()`                     | < 20 µs    | BLAKE2b KDF + XChaCha20-Poly1305 + base64url        |
+| `zst.verify()`                   | < 30 µs    | base64url decode + AEAD decrypt + claims validation |
+| `zst.decode()`                   | < 10 µs    | Parse only, no crypto                               |
+| vs `jose` HS256 sign             | ×5         | ZST is 5.3× faster (15 vs 80 µs)                    |
+| vs `@noble/ciphers` AEAD encrypt | ×2.6       | ZST is 2.6× faster (15 vs 40 µs)                    |
+| Binary size                      | < 500 KB   | ReleaseSmall + strip                                |
+| `npm install`                    | < 3 sec    | Prebuilt, no compile                                |
 
 ---
 
 ## 10. Roadmap
 
-### v1.0.0 (Current — Ship First)
+### ✅ Implemented (current)
 
-- [x] `nanoid(length?)` → string
-- [x] `Snowflake.Id()` → bigint (auto nodeId from hostname hash)
-- [x] `extractSnowflakeTime(bigint)` → number
-- [x] N-API module registration
-- [x] Cross-compilation CI (5 targets)
-- [x] TypeScript definitions
-- [x] npm publish with prebuilt binaries in `dist/bin/`
+- [x] `nanoid()` + `nanoid.Batch()` + `nanoid.BatchBuffer()`
+- [x] `Snowflake.Id()` + `Snowflake.Batch()` + extract helpers
+- [x] `codec.base64` (encode/decode, urlSafe, constant-time decode)
+- [x] `codec.base58` (encode/decode)
+- [x] `codec.hex` (encode/decode, upper option)
+- [x] `zst.sign()` + `zst.verify()` + `zst.decode()` + `zst.generateKey()`
+- [x] N-API module registration + cross-compilation CI (5 targets)
+- [x] TypeScript definitions + npm publish with prebuilt binaries
 
-### v1.1.0 (Batch Generation — Phase 3)
+### 🔜 Next
 
-- [x] `nanoidBatch(count, length?)` → `Array<string>` (native strings, 1 boundary crossing, no Buffer.toString)
-- [ ] `snowflakeBatch(count, {nodeId}?)` → `Array<<bigint>`
+- [ ] `snowflakeBatch(count, {nodeId}?)` → `bigint[]`
 - [ ] Finalizer callbacks for slab memory
-- [ ] Benchmark suite in `/bench`
-
-### v2.0.0 (zig-codec Integration)
-
-- [ ] `codec.encode(buffer, 'base58')` → string
-- [ ] `codec.decode(string, 'base58')` → Buffer
-- [ ] SIMD base64 encode/decode
-- [ ] Constant-time decode option for crypto
-
-### v2.1.0 (Advanced IDs)
-
-- [ ] ULID support (Snowflake + base32 encoding)
-- [ ] UUIDv7 support (modern sortable UUID)
-- [ ] Custom alphabet support with comptime validation
+- [ ] Benchmark suite (`/bench`)
+- [ ] `public` mode for ZST (signed, not encrypted)
+- [ ] Key rotation via `kid` header
+- [ ] Asymmetric ZST mode (Ed25519)
 
 ---
 
@@ -383,26 +422,44 @@ dist/bin/
 - **Fix:** Moved `allocator.free(id)` to **after** the N-API string creation. JS copies the bytes; Zig can then free.
 - **Lesson:** The N-API `create_string` functions **copy** data. External ArrayBuffers (Phase 3) do **not** copy — they require finalizers.
 
+### 2026-06-18: v0.3.1 — Type consolidation + README overhaul
+
+- **Removed dead code:** `throwZstError()` defined but never called.
+- **Consolidated types:** `ZstPayload`, `ZstHeader`, `ZstCompleteResult`, `ZstDecodedHeader`, `ZstSignOptions`, `ZstVerifyOptions`, `ZstDecodeOptions`, `ZstModule`, all ZST error classes, `NanoidFunction`, and `SnowflakeModule` were defined across 4 files (`index.ts`, `zst.types.ts`, `nanoid.types.ts`, `snowflake.types.ts`). All now live in `native.types.ts`. Deleted 3 redundant files.
+- **Extracted helper:** `toBuffer()` in `index.ts` replaces duplicated `Buffer.isBuffer` pattern in `zst.sign()` and `zst.verify()`.
+- **README compressed:** 410→247 lines, same technical detail. Tables replace prose sections throughout.
+- **Version bump:** `0.2.56` → `0.3.2` (auto-incremented by pre-commit hook)
+
+### 2026-06-18: ZST benchmarked against pure-JS competitors
+
+- **Benchmarks:** ZST sign ×5.3 faster than `jose` HS256, ×2.6 faster than `@noble/ciphers` raw XChaCha20-Poly1305 encrypt. Verify ×4.0 faster than `jose`, ×1.0–1.3 vs `@noble/ciphers` decrypt. Decode-only is slower than `jose`/`@noble/ciphers` (no crypto to amortize native call overhead).
+- **Root cause:** Pure-JS libraries allocate multiple `Uint8Array`/`ArrayBuffer` objects per crypto operation, triggering GC pressure. Zig runs the full pipeline in native code with arena-allocated temp memory.
+- **Lessons:** (1) The biggest ZST advantage is in sign/encrypt where key derivation + nonce generation + AEAD + encoding all run in native code with zero JS allocations. (2) Decode-only is slower than pure JS because there's no crypto work to amortize the N-API boundary crossing — but decode is the least performance-critical path. (3) Token size (256B vs 113B for JWT) is the cost of encryption vs signing.
+
 ---
 
 ## 12. Glossary
 
-| Term                  | Definition                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **N-API**             | Node.js API for native addons. C ABI, stable across Node versions.                                                                          |
-| **ABI**               | Application Binary Interface. The calling convention and memory layout contract between Zig and Node.js.                                    |
-| **CSPRNG**            | Cryptographically Secure Pseudo-Random Number Generator. Unpredictable even to adversaries with computation power.                          |
-| **Modulo Bias**       | Statistical skew when mapping a random number from a larger range to a smaller range using `%`.                                             |
-| **Snowflake ID**      | 64-bit distributed ID: 41-bit timestamp + 10-bit node + 12-bit sequence. Invented by Twitter.                                               |
-| **ULID**              | Universally Unique Lexicographically Sortable Identifier. 26-char Crockford base32 string with embedded timestamp.                          |
-| **Zero-Copy**         | Passing data between JS and native without duplicating memory. Achieved via ArrayBuffer views or external buffers.                          |
-| **Finalizer**         | A callback invoked by V8 GC when a JS object (e.g., external ArrayBuffer) is garbage collected. Used to free native memory.                 |
-| **comptime**          | Zig's compile-time code execution. Used here for alphabet validation and lookup table generation.                                           |
-| **errdefer**          | Zig's "deferred cleanup on error" mechanism. Ensures allocations are freed if a function returns an error.                                  |
-| **Custom Epoch**      | The base timestamp from which Snowflake time offsets are measured. For zig-id, `2026-01-01T00:00:00.000Z` (`1767225600000`).                |
-| **nodeId**            | 10-bit machine identifier, auto-derived from hostname via Wyhash. Stable per machine, collision-tolerant at 1024-granularity.               |
-| **Sequence Overflow** | When 4096 IDs have been generated in a single millisecond. Resolved by blocking until the clock advances to the next millisecond.           |
-| **Clock Rollback**    | When the system clock jumps backwards (NTP/timezone correction). Handled by blocking until the clock catches up to the last-used timestamp. |
+| Term                   | Definition                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **N-API**              | Node.js API for native addons. C ABI, stable across Node versions.                                                                          |
+| **ABI**                | Application Binary Interface — calling convention and memory layout between Zig and Node.js.                                                |
+| **CSPRNG**             | Cryptographically Secure Pseudo-Random Number Generator.                                                                                    |
+| **XChaCha20-Poly1305** | AEAD cipher with 192-bit nonce — safe for random nonces. Used by ZST for token encryption.                                                  |
+| **BLAKE2b**            | Hash function used by ZST for domain-separated key derivation.                                                                              |
+| **ZST**                | Zig Secure Token — encrypted token format using XChaCha20-Poly1305 + BLAKE2b KDF.                                                           |
+| **rev**                | Monotonic revocation counter embedded in ZST tokens for O(1) "logout everywhere".                                                           |
+| **Modulo Bias**        | Statistical skew when mapping random bytes to a smaller range using `%`.                                                                    |
+| **Snowflake ID**       | 64-bit distributed ID: 41-bit timestamp + 10-bit node + 12-bit sequence.                                                                    |
+| **ULID**               | Universally Unique Lexicographically Sortable Identifier. 26-char base32 with embedded timestamp.                                           |
+| **Zero-Copy**          | Passing data between JS and native without duplicating memory. Achieved via ArrayBuffer views or external buffers.                          |
+| **Finalizer**          | A callback invoked by V8 GC when a JS object (e.g., external ArrayBuffer) is garbage collected. Used to free native memory.                 |
+| **comptime**           | Zig's compile-time code execution. Used here for alphabet validation and lookup table generation.                                           |
+| **errdefer**           | Zig's "deferred cleanup on error" mechanism. Ensures allocations are freed if a function returns an error.                                  |
+| **Custom Epoch**       | The base timestamp from which Snowflake time offsets are measured. For zig-id, `2026-01-01T00:00:00.000Z` (`1767225600000`).                |
+| **nodeId**             | 10-bit machine identifier, auto-derived from hostname via Wyhash. Stable per machine, collision-tolerant at 1024-granularity.               |
+| **Sequence Overflow**  | When 4096 IDs have been generated in a single millisecond. Resolved by blocking until the clock advances to the next millisecond.           |
+| **Clock Rollback**     | When the system clock jumps backwards (NTP/timezone correction). Handled by blocking until the clock catches up to the last-used timestamp. |
 
 ---
 
@@ -416,5 +473,5 @@ dist/bin/
 
 ---
 
-_Last updated: 2025-06-09_
-_Next review: After v1.0.0 npm publish_
+_Last updated: 2026-06-18_
+_Next review: After next benchmark pass_

@@ -3,6 +3,9 @@ doc/
 
 # Ignore the zig build directory
 .zig-cache/
+
+# npm pack artifacts
+*.tgz
 build.zig.zon
 zig-out/
 

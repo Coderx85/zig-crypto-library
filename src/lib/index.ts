@@ -1,8 +1,10 @@
-export type { NativeBindings } from "./native.types";
-export type { NanoidFunction } from "./nanoid.types";
-export type { SnowflakeModule } from "./snowflake.types";
 export type {
+  NativeBindings,
+  NanoidFunction,
+  SnowflakeModule,
   ZstPayload,
+  ZstHeader,
+  ZstCompleteResult,
   ZstDecodedHeader,
   ZstSignOptions,
   ZstVerifyOptions,
@@ -18,4 +20,4 @@ export {
   ZstSubjectError,
   ZstJwtIdError,
   ZstRevokedError,
-} from "./zst.types";
+} from "./native.types";

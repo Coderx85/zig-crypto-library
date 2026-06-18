@@ -10,6 +10,17 @@ export interface ZstPayload {
   [key: string]: any;
 }
 
+export interface ZstHeader {
+  ver: string;
+  typ: string;
+  mode: "local" | "public";
+}
+
+export interface ZstCompleteResult {
+  payload: ZstPayload;
+  header: ZstHeader;
+}
+
 export interface ZstDecodedHeader {
   ver: string;
   typ: string;
@@ -19,7 +30,7 @@ export interface ZstDecodedHeader {
 
 export interface ZstSignOptions {
   expiresIn?: number | string;
-  notBefore?: number | string;
+  notBefore?: string;
   audience?: string;
   issuer?: string;
   subject?: string;
@@ -53,15 +64,12 @@ export interface ZstModule {
     secret: string | Buffer | Uint8Array,
     options?: ZstSignOptions
   ): string;
-
   verify(
     token: string,
     secret: string | Buffer | Uint8Array,
     options?: ZstVerifyOptions
   ): ZstPayload;
-
   decode(token: string, options?: ZstDecodeOptions): ZstDecodedHeader;
-
   generateKey(length?: number): Buffer;
 }
 
@@ -88,4 +96,65 @@ export interface NativeBindings {
   zstVerify(token: string, key: Buffer, options?: ZstVerifyOptions): ZstPayload;
   zstDecode(token: string): ZstDecodedHeader;
   zstGenerateKey(length?: number): Buffer;
+}
+
+export class ZstError extends Error {
+  name: "ZstError" = "ZstError";
+}
+
+export class ZstExpiredError extends ZstError {
+  expiredAt: Date;
+  constructor(message: string, expiredAt?: Date) {
+    super(message);
+    this.expiredAt = expiredAt ?? new Date();
+  }
+}
+
+export class ZstNotBeforeError extends ZstError {
+  date: Date;
+  constructor(message: string, date?: Date) {
+    super(message);
+    this.date = date ?? new Date();
+  }
+}
+
+export class ZstAudienceError extends ZstError {
+  constructor() {
+    super("Zistoken audience mismatch");
+  }
+}
+
+export class ZstIssuerError extends ZstError {
+  constructor() {
+    super("Zistoken issuer mismatch");
+  }
+}
+
+export class ZstSubjectError extends ZstError {
+  constructor() {
+    super("Zistoken subject mismatch");
+  }
+}
+
+export class ZstJwtIdError extends ZstError {
+  constructor() {
+    super("Zistoken JWT ID mismatch");
+  }
+}
+
+export class ZstRevokedError extends ZstError {
+  constructor() {
+    super("Zistoken revoked");
+  }
+}
+
+export interface NanoidFunction {
+  (length?: number): string;
+  Batch(count: number, length?: number): string[];
+  BatchBuffer(count: number, length?: number): Buffer;
+}
+
+export interface SnowflakeModule {
+  Id(): bigint;
+  Batch(count: number): bigint[];
 }
